@@ -38,7 +38,9 @@ Each later phase gets its own spec → plan → implementation cycle.
 
 ## 2. Technology stack (locked)
 
-- **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Framer Motion
+- **Frontend:** Next.js 16 (App Router; `create-next-app@latest` — supersedes the
+  brief's "Next.js 15", which is fully forward-compatible), TypeScript, Tailwind CSS v4,
+  shadcn/ui, Framer Motion
 - **Forms/validation:** React Hook Form + Zod
 - **Backend:** Next.js Server Actions
 - **Data/auth:** Supabase (PostgreSQL, Auth, RLS, Storage), `@supabase/ssr`
