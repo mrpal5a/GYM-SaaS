@@ -1,36 +1,126 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GymFlow Pro
 
-## Getting Started
+Multi-tenant gym-management SaaS. Each gym's data is strictly isolated via
+PostgreSQL Row Level Security driven by JWT custom claims.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui ·
+Framer Motion · React Hook Form + Zod · Supabase (Postgres/Auth/RLS) · Vitest.
+
+> **Status:** Phase 0 (foundation) — multi-tenant auth, RBAC, RLS isolation, and
+> the themed app shell. See `docs/superpowers/` for the spec, plan, and roadmap.
+
+---
+
+## Prerequisites
+
+- Node.js 20+ (developed on 24) and npm
+- A free [Supabase](https://supabase.com) project
+
+## 1. Install
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 2. Environment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Copy `.env.example` to `.env.local` and fill in your Supabase keys
+(Supabase Dashboard → Settings → API):
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://<your-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+SUPABASE_SERVICE_ROLE_KEY=<service_role key>   # secret — server-only
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-## Learn More
+`.env.local` is gitignored. Never commit real keys.
 
-To learn more about Next.js, take a look at the following resources:
+## 3. Database
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Apply the SQL migrations in `supabase/migrations/` (in numeric order) to your
+project. Either paste them into the Supabase **SQL Editor**, or use the Supabase
+CLI:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npx supabase link --project-ref <your-ref>
+npx supabase db push
+```
 
-## Deploy on Vercel
+Migrations:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| File | Purpose |
+|------|---------|
+| `0001_enums_and_tables.sql` | enums + `gyms`, `profiles`, `subscriptions`, `audit_logs` + indexes |
+| `0002_jwt_hook_and_accessors.sql` | access-token hook + `current_gym_id()` / `current_role_name()` |
+| `0003_rls_policies.sql` | RLS enabled + tenant-isolation policies |
+| `0004_create_gym_with_owner.sql` | atomic signup RPC |
+| `0005_profile_update_guard.sql` | trigger blocking profile privilege escalation |
+| `0006_accept_staff_invite.sql` | staff-onboarding RPC |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 4. Two required Supabase dashboard settings
+
+1. **Authentication → Hooks → "Customize Access Token (JWT) Claims"** → enable →
+   select `public.custom_access_token_hook` → Save.
+   *(Without this, JWTs won't carry `gym_id`/`user_role` and RLS will deny everything.)*
+2. **Authentication → Sign In / Providers → Email → "Confirm email" → OFF**
+   (development only; re-enable once transactional email lands in Phase 4).
+
+## 5. Run
+
+```bash
+npm run dev      # http://localhost:3000
+```
+
+Sign up at `/signup` → a gym + owner + trial subscription are created atomically,
+and you land on `/dashboard`. Toggle light/dark from the top bar.
+
+---
+
+## Scripts
+
+```bash
+npm run dev      # dev server
+npm run build    # production build
+npm test         # unit tests (Vitest)
+npx tsc --noEmit # typecheck
+
+# Prove tenant isolation + the privilege-escalation guard against the live DB:
+U=$NEXT_PUBLIC_SUPABASE_URL ANON=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+  SR=$SUPABASE_SERVICE_ROLE_KEY node scripts/verify-isolation.mjs
+```
+
+`scripts/verify-isolation.mjs` spins up two gyms + a staff user, asserts neither
+gym can see the other's data, asserts staff/owner cannot escalate to
+`super_admin`, then cleans up. Expected: `11/11 checks passed`.
+
+---
+
+## Architecture notes
+
+- **Multi-tenancy:** every tenant table carries `gym_id`; RLS policies compare it
+  to `current_gym_id()`, which reads the `gym_id` custom claim from the verified
+  JWT (stamped by `custom_access_token_hook`). No per-request table lookups.
+- **RBAC:** roles `super_admin | gym_owner | staff` enforced at both the RLS layer
+  and inside server actions. `super_admin` has explicit cross-tenant carve-outs.
+- **Security:** profile updates are guarded by a `BEFORE UPDATE` trigger so a user
+  cannot change their own `role`/`gym_id` (RLS alone can't prevent this — see the
+  comment in `0005_profile_update_guard.sql`).
+- **Mutations:** all writes go through Next.js server actions that re-validate with
+  Zod server-side; the client is never the security boundary.
+
+## Phase roadmap
+
+0 (done) Foundation · 1 Members · 2 Plans + expiry · 3 Payments · 4 Email (Resend)
+· 5 Attendance · 6 Dashboard charts · 7 Body progress / notifications / reports ·
+8 Super-admin + billing. Each phase has its own spec + plan under
+`docs/superpowers/`.
+
+---
+
+## Known follow-ups
+
+- Next 16 renamed the `middleware.ts` convention to `proxy.ts` (deprecation
+  warning only; current file works). Migrate when convenient.
+- `globals.css`: the Geist **sans** font variable mapping is self-referential
+  (`--font-sans: var(--font-sans)`); sans currently falls back to system. Minor.
