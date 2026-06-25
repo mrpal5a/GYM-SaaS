@@ -77,8 +77,10 @@ export default async function PaymentsPage() {
                         </td>
                         <td className="px-4 py-3 font-medium">{formatMoney(Number(p.amount))}</td>
                         <td className="px-4 py-3 text-muted-foreground">{methodLabel(p.method)}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                          {p.invoice_number || "—"}
+                        <td className="px-4 py-3 font-mono text-xs">
+                          <Link href={`/invoice/${p.id}`} className="text-muted-foreground hover:text-foreground hover:underline">
+                            {p.invoice_number || "View"}
+                          </Link>
                         </td>
                       </tr>
                     ))}

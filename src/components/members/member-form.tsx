@@ -7,22 +7,29 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MemberAvatar } from "@/components/members/member-avatar";
-import type { Member } from "@/types/db";
+import { formatMoney } from "@/lib/members/metrics";
+import type { Member, MembershipPlan } from "@/types/db";
 
 type ActionResult = { ok: false; error: string } | { ok: true };
 type FormAction = (prev: unknown, formData: FormData) => Promise<ActionResult>;
+type PlanOption = Pick<MembershipPlan, "id" | "name" | "price" | "duration_days">;
+
+const today = () => new Date().toISOString().slice(0, 10);
 
 export function MemberForm({
   action,
   member,
+  plans = [],
   submitLabel = "Save member",
 }: {
   action: FormAction;
   member?: Member;
+  plans?: PlanOption[];
   submitLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const [preview, setPreview] = useState<string | null>(member?.photo_url ?? null);
+  const [planId, setPlanId] = useState("");
 
   return (
     <form action={formAction} className="space-y-5">
@@ -82,6 +89,50 @@ export function MemberForm({
       <Field label="Notes" htmlFor="notes">
         <Textarea id="notes" name="notes" rows={3} defaultValue={member?.notes ?? ""} />
       </Field>
+
+      {!member && plans.length > 0 && (
+        <div className="space-y-4 rounded-lg border border-border/60 p-4">
+          <div>
+            <p className="text-sm font-medium">Membership</p>
+            <p className="text-xs text-muted-foreground">
+              Optionally assign a plan now — you can also do it later from the member&apos;s page.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Plan" htmlFor="plan_id">
+              <Select
+                id="plan_id"
+                name="plan_id"
+                value={planId}
+                onChange={(e) => setPlanId(e.target.value)}
+              >
+                <option value="">No plan yet</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {formatMoney(p.price)} / {p.duration_days}d
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {planId && (
+              <Field label="Start date" htmlFor="start_date">
+                <Input id="start_date" name="start_date" type="date" defaultValue={today()} />
+              </Field>
+            )}
+          </div>
+          {planId && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="record_payment"
+                className="size-4 accent-primary"
+                defaultChecked
+              />
+              Record payment for the plan price
+            </label>
+          )}
+        </div>
+      )}
 
       {state?.ok === false && (
         <p className="text-sm text-destructive">{state.error}</p>

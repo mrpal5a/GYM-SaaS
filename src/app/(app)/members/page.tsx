@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { MembersToolbar } from "@/components/members/members-toolbar";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { StatusBadge } from "@/components/members/status-badge";
+import { FlashToast } from "@/components/members/flash-toast";
 import { formatDate } from "@/lib/members/metrics";
 import type { MemberWithStatus } from "@/types/db";
 
@@ -14,9 +15,9 @@ export const dynamic = "force-dynamic";
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; flash?: string }>;
 }) {
-  const { q = "", status = "" } = await searchParams;
+  const { q = "", status = "", flash } = await searchParams;
   const supabase = await createClient();
 
   let query = supabase
@@ -38,6 +39,7 @@ export default async function MembersPage({
 
   return (
     <div className="space-y-4">
+      <FlashToast message={flash} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Members</h1>

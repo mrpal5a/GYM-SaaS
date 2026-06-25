@@ -13,6 +13,15 @@ export type MembershipStatus =
   | "cancelled"
   | "none";
 
+export interface Gym {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  owner_id: string | null;
+  created_at: string;
+}
+
 export interface Member {
   id: string;
   gym_id: string;

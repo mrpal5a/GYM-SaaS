@@ -161,8 +161,13 @@ export default async function MemberDetailPage({
                             <td className="py-2 pr-4">{formatDate(p.paid_at.slice(0, 10))}</td>
                             <td className="py-2 pr-4 font-medium">{formatMoney(Number(p.amount))}</td>
                             <td className="py-2 pr-4 text-muted-foreground">{methodLabel(p.method)}</td>
-                            <td className="py-2 font-mono text-xs text-muted-foreground">
-                              {p.invoice_number || "—"}
+                            <td className="py-2 font-mono text-xs">
+                              <Link
+                                href={`/invoice/${p.id}`}
+                                className="text-muted-foreground hover:text-foreground hover:underline"
+                              >
+                                {p.invoice_number || "View"}
+                              </Link>
                             </td>
                           </tr>
                         ))}

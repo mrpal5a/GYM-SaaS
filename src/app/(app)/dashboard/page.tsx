@@ -103,8 +103,11 @@ export default async function DashboardPage() {
         </Card>
 
         <Card className="glass">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Expiring soon</CardTitle>
+            <Link href="/renewals" className="text-xs text-muted-foreground hover:text-foreground">
+              View all →
+            </Link>
           </CardHeader>
           <CardContent>
             {expiringSoon.length === 0 ? (

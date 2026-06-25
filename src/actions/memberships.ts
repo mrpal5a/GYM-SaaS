@@ -51,6 +51,52 @@ export async function assignMembershipAction(
   return { ok: true };
 }
 
+/**
+ * One-click renewal from the Renewals hub: re-assign the member's current plan
+ * starting today and record the plan price as a cash payment. Reuses the
+ * assign_membership RPC, which cancels the old subscription and computes the new
+ * end date from the plan duration.
+ */
+export async function renewMembershipAction(formData: FormData): Promise<void> {
+  const ctx = await getGymContext();
+  if (!ctx) return;
+
+  const memberId = String(formData.get("memberId") ?? "");
+  const planId = String(formData.get("planId") ?? "");
+  if (!memberId || !planId) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: subId, error: rpcErr } = await ctx.supabase.rpc("assign_membership", {
+    p_member_id: memberId,
+    p_plan_id: planId,
+    p_start_date: today,
+  });
+  if (rpcErr) return;
+
+  const [{ data: plan }, { data: member }] = await Promise.all([
+    ctx.supabase.from("membership_plans").select("price").eq("id", planId).single(),
+    ctx.supabase.from("members").select("full_name").eq("id", memberId).single(),
+  ]);
+  if (plan && member) {
+    await ctx.supabase.from("payments").insert({
+      gym_id: ctx.gymId,
+      member_id: memberId,
+      member_name: member.full_name,
+      subscription_id: subId as string,
+      amount: plan.price,
+      method: "cash",
+      invoice_number: generateInvoiceNumber(),
+      created_by: ctx.userId,
+    });
+  }
+
+  revalidatePath("/renewals");
+  revalidatePath(`/members/${memberId}`);
+  revalidatePath("/members");
+  revalidatePath("/dashboard");
+  revalidatePath("/payments");
+}
+
 export async function cancelMembershipAction(formData: FormData): Promise<void> {
   const ctx = await getGymContext();
   if (!ctx) return;

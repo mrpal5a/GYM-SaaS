@@ -1,22 +1,26 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboardIcon, UsersIcon, TagIcon, ReceiptIcon } from "lucide-react";
+import { LayoutDashboardIcon, UsersIcon, TagIcon, ReceiptIcon, RefreshCwIcon, SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
   { href: "/members", label: "Members", icon: UsersIcon },
+  { href: "/renewals", label: "Renewals", icon: RefreshCwIcon },
   { href: "/plans", label: "Plans", icon: TagIcon },
   { href: "/payments", label: "Payments", icon: ReceiptIcon },
 ];
 
-export function Sidebar() {
+export function Sidebar({ canManage = false }: { canManage?: boolean }) {
   const pathname = usePathname();
+  const navItems = canManage
+    ? [...items, { href: "/settings", label: "Settings", icon: SettingsIcon }]
+    : items;
   return (
-    <aside className="glass hidden w-56 shrink-0 p-4 md:block">
+    <aside className="glass hidden w-56 shrink-0 p-4 md:block print:hidden">
       <nav className="space-y-1">
-        {items.map((i) => {
+        {navItems.map((i) => {
           const active = pathname === i.href || pathname.startsWith(i.href + "/");
           const Icon = i.icon;
           return (

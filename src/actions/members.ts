@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getGymContext } from "@/lib/auth/context";
 import { memberSchema } from "@/lib/validations/member";
+import { generateInvoiceNumber } from "@/lib/payments/invoice";
 
 export type ActionResult = { ok: false; error: string } | { ok: true };
 
@@ -45,17 +46,62 @@ export async function createMemberAction(
 
   const photoUrl = await uploadPhoto(ctx, formData.get("photo") as File | null);
 
-  const { error } = await ctx.supabase.from("members").insert({
-    gym_id: ctx.gymId,
-    created_by: ctx.userId,
-    photo_url: photoUrl,
-    ...parsed.data,
-  });
+  const { data: created, error } = await ctx.supabase
+    .from("members")
+    .insert({
+      gym_id: ctx.gymId,
+      created_by: ctx.userId,
+      photo_url: photoUrl,
+      ...parsed.data,
+    })
+    .select("id")
+    .single();
   if (error) return { ok: false, error: error.message };
+
+  // Optionally assign a plan in the same step (selected on the add-member form).
+  const planId = String(formData.get("plan_id") ?? "");
+  let assignedPlan: string | null = null;
+  if (created && planId) {
+    const startDate = String(formData.get("start_date") ?? "") || new Date().toISOString().slice(0, 10);
+    const { data: subId, error: rpcErr } = await ctx.supabase.rpc("assign_membership", {
+      p_member_id: created.id,
+      p_plan_id: planId,
+      p_start_date: startDate,
+    });
+    // Non-fatal: the member is already created. Surface the issue so the owner
+    // knows to assign the plan manually rather than silently dropping it.
+    if (rpcErr) {
+      return { ok: false, error: `Member created, but plan wasn't assigned: ${rpcErr.message}` };
+    }
+    const { data: plan } = await ctx.supabase
+      .from("membership_plans")
+      .select("name, price")
+      .eq("id", planId)
+      .single();
+    assignedPlan = plan?.name ?? null;
+    if (plan && formData.get("record_payment") === "on") {
+      await ctx.supabase.from("payments").insert({
+        gym_id: ctx.gymId,
+        member_id: created.id,
+        member_name: parsed.data.full_name,
+        subscription_id: subId as string,
+        amount: plan.price,
+        method: "cash",
+        invoice_number: generateInvoiceNumber(),
+        created_by: ctx.userId,
+      });
+    }
+  }
 
   revalidatePath("/members");
   revalidatePath("/dashboard");
-  redirect("/members");
+  revalidatePath("/payments");
+  revalidatePath("/renewals");
+
+  const flash = assignedPlan
+    ? `${parsed.data.full_name} added · ${assignedPlan} plan assigned`
+    : `${parsed.data.full_name} added`;
+  redirect(`/members?flash=${encodeURIComponent(flash)}`);
 }
 
 export async function updateMemberAction(
