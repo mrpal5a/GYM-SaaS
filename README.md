@@ -6,8 +6,10 @@ PostgreSQL Row Level Security driven by JWT custom claims.
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui ·
 Framer Motion · React Hook Form + Zod · Supabase (Postgres/Auth/RLS) · Vitest.
 
-> **Status:** Phase 0 (foundation) — multi-tenant auth, RBAC, RLS isolation, and
-> the themed app shell. See `docs/superpowers/` for the spec, plan, and roadmap.
+> **Status:** Phase 0 foundation **+ Phases 1‑3 and the Phase 6 dashboard** —
+> member management (CRUD, search/filter, photo, BMI), membership plans with an
+> expiry/status engine, payments/invoices, and a stats + charts dashboard. See
+> `docs/superpowers/` for the spec, plan, and roadmap.
 
 ---
 
@@ -57,6 +59,16 @@ Migrations:
 | `0004_create_gym_with_owner.sql` | atomic signup RPC |
 | `0005_profile_update_guard.sql` | trigger blocking profile privilege escalation |
 | `0006_accept_staff_invite.sql` | staff-onboarding RPC |
+| `0007_member_tables.sql` | `members`, `membership_plans`, `member_subscriptions`, `payments` + enums/indexes |
+| `0008_member_rls.sql` | RLS tenant-isolation policies for the Phase 1‑3 tables |
+| `0009_member_views_rpc.sql` | `member_with_status` view + `assign_membership()` RPC |
+| `0010_member_photos_storage.sql` | `member-photos` storage bucket + folder-scoped RLS |
+
+> After adding `0007`–`0010`, **new gyms work immediately**. The `member-photos`
+> bucket is created by `0010` (public read, writes scoped to each gym's folder).
+> If your Supabase project blocks `insert into storage.buckets` from the SQL
+> editor, create a public bucket named `member-photos` manually (Storage → New
+> bucket) and then run the three policy statements from `0010`.
 
 ## 4. Two required Supabase dashboard settings
 
@@ -74,6 +86,10 @@ npm run dev      # http://localhost:3000
 
 Sign up at `/signup` → a gym + owner + trial subscription are created atomically,
 and you land on `/dashboard`. Toggle light/dark from the top bar.
+
+Then: create a plan on **/plans**, add members on **/members**, assign a plan and
+record payments from a member's profile, and watch the **/dashboard** stats,
+revenue chart, and "expiring soon" list populate.
 
 ---
 
@@ -111,10 +127,10 @@ gym can see the other's data, asserts staff/owner cannot escalate to
 
 ## Phase roadmap
 
-0 (done) Foundation · 1 Members · 2 Plans + expiry · 3 Payments · 4 Email (Resend)
-· 5 Attendance · 6 Dashboard charts · 7 Body progress / notifications / reports ·
-8 Super-admin + billing. Each phase has its own spec + plan under
-`docs/superpowers/`.
+0 (done) Foundation · 1 (done) Members · 2 (done) Plans + expiry · 3 (done)
+Payments · 4 Email (Resend) · 5 Attendance · 6 (done) Dashboard charts · 7 Body
+progress / notifications / reports · 8 Super-admin + billing. Each phase has its
+own spec + plan under `docs/superpowers/`.
 
 ---
 
@@ -124,3 +140,11 @@ gym can see the other's data, asserts staff/owner cannot escalate to
   warning only; current file works). Migrate when convenient.
 - `globals.css`: the Geist **sans** font variable mapping is self-referential
   (`--font-sans: var(--font-sans)`); sans currently falls back to system. Minor.
+- **Member photos** use a *public* storage bucket with unguessable UUID filenames
+  (writes are still gym-folder-scoped by RLS). Fine for an MVP; switch to a private
+  bucket + signed URLs if photos are sensitive.
+- **Currency** is hard-coded to INR (`formatMoney` in `src/lib/members/metrics.ts`);
+  make it per-gym when billing settings land.
+- Membership status (`active`/`expiring`/`expired`) is **derived on read** from
+  `end_date` via the `member_with_status` view — no cron needed. A scheduled job to
+  email expiry reminders arrives in Phase 4.
