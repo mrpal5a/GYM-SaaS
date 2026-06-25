@@ -63,6 +63,7 @@ Migrations:
 | `0008_member_rls.sql` | RLS tenant-isolation policies for the Phase 1‑3 tables |
 | `0009_member_views_rpc.sql` | `member_with_status` view + `assign_membership()` RPC |
 | `0010_member_photos_storage.sql` | `member-photos` storage bucket + folder-scoped RLS |
+| `0011_accept_staff_invite_app_metadata.sql` | security fix: derive invite gym from admin-only `app_metadata` |
 
 > After adding `0007`–`0010`, **new gyms work immediately**. The `member-photos`
 > bucket is created by `0010` (public read, writes scoped to each gym's folder).

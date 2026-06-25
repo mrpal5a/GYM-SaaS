@@ -60,10 +60,17 @@ export async function inviteStaffAction(_prev: unknown, formData: FormData): Pro
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
-    data: { gym_id: gymId, invited_role: "staff" },
+  const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/accept-invite`,
   });
   if (error) return { ok: false, error: error.message };
+
+  // Carry the invite context in app_metadata (admin-only, NOT user-mutable).
+  // accept_staff_invite reads gym_id from app_metadata; user_metadata cannot
+  // be trusted because the user can change it via auth.updateUser.
+  const { error: metaErr } = await admin.auth.admin.updateUserById(invited.user.id, {
+    app_metadata: { gym_id: gymId, invited_role: "staff" },
+  });
+  if (metaErr) return { ok: false, error: metaErr.message };
   return { ok: true };
 }
