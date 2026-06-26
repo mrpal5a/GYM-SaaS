@@ -4,9 +4,11 @@ vi.mock("server-only", () => ({}));
 const { buildJoinUrl, buildUpiUri } = await import("./join-link");
 
 describe("buildJoinUrl", () => {
-  const orig = process.env.NEXT_PUBLIC_SITE_URL;
+  const origSite = process.env.NEXT_PUBLIC_SITE_URL;
+  const origVercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
   afterEach(() => {
-    process.env.NEXT_PUBLIC_SITE_URL = orig;
+    process.env.NEXT_PUBLIC_SITE_URL = origSite;
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = origVercel;
   });
 
   it("builds from NEXT_PUBLIC_SITE_URL and strips trailing slashes", () => {
@@ -14,8 +16,21 @@ describe("buildJoinUrl", () => {
     expect(buildJoinUrl("abc123")).toBe("https://app.example.com/join/abc123");
   });
 
-  it("falls back to localhost when the env var is unset", () => {
+  it("uses the Vercel production domain (https-prefixed) when no explicit URL is set", () => {
     delete process.env.NEXT_PUBLIC_SITE_URL;
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "saasgymmanagement.vercel.app";
+    expect(buildJoinUrl("tok")).toBe("https://saasgymmanagement.vercel.app/join/tok");
+  });
+
+  it("prefers an explicit NEXT_PUBLIC_SITE_URL over the Vercel domain", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://gym.com";
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "saasgymmanagement.vercel.app";
+    expect(buildJoinUrl("tok")).toBe("https://gym.com/join/tok");
+  });
+
+  it("falls back to localhost when neither is set", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
     expect(buildJoinUrl("tok")).toBe("http://localhost:3000/join/tok");
   });
 });

@@ -1,10 +1,10 @@
 import "server-only";
 import QRCode from "qrcode";
+import { siteUrl } from "@/lib/site-url";
 
 /** Public join URL for a gym, e.g. https://app.example.com/join/<token>. */
 export function buildJoinUrl(token: string): string {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
-  return `${base}/join/${token}`;
+  return `${siteUrl()}/join/${token}`;
 }
 
 /**

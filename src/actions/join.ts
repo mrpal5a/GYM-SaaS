@@ -6,6 +6,7 @@ import { canManageGym } from "@/lib/auth/roles";
 import { generateInvoiceNumber } from "@/lib/payments/invoice";
 import { loadInvoiceData } from "@/lib/payments/invoice-data";
 import { deliverInvoice, type InvoiceDelivery } from "@/lib/payments/invoice-delivery";
+import { checkJoinRateLimit, getClientIp } from "@/lib/rate-limit/join";
 import { joinRequestSchema } from "@/lib/validations/join";
 
 export type JoinResult = { ok: true } | { ok: false; error: string };
@@ -79,6 +80,12 @@ export async function submitJoinRequestAction(
     .eq("join_token", token)
     .single();
   if (!gym) return { ok: false, error: "This join link is no longer valid." };
+
+  // Throttle before any parsing/uploads so a flood costs only one indexed lookup.
+  const allowed = await checkJoinRateLimit(admin, gym.id, await getClientIp());
+  if (!allowed) {
+    return { ok: false, error: "Too many requests from your network. Please try again later." };
+  }
 
   const parsed = joinRequestSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };

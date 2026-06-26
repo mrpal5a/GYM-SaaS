@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { signupSchema, loginSchema, inviteSchema, slugify } from "@/lib/validations/auth";
 import { homePathForRole, type Role } from "@/lib/auth/roles";
+import { siteUrl } from "@/lib/site-url";
 
 type ActionResult = { ok: false; error: string } | { ok: true };
 
@@ -61,7 +62,7 @@ export async function inviteStaffAction(_prev: unknown, formData: FormData): Pro
 
   const admin = createAdminClient();
   const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/accept-invite`,
+    redirectTo: `${siteUrl()}/accept-invite`,
   });
   if (error) return { ok: false, error: error.message };
 

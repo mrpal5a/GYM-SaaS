@@ -74,6 +74,7 @@ Migrations:
 | `0014_join_requests.sql` | `gyms.join_token`/`upi_id`/`upi_payee_name`; `join_requests` table + RLS (gym-wide read, owner-only update) for self-service onboarding |
 | `0015_join_uploads_storage.sql` | `join-uploads` storage bucket (public read) for prospect photo + UPI payment screenshot |
 | `0016_approve_join_request.sql` | `approve_join_request()` RPC — atomically turns an approved request into a member + subscription + payment |
+| `0017_join_request_rate_limit.sql` | `join_request_attempts` table + `register_join_attempt()` RPC — durable per-IP + per-gym rate limit for the public join form |
 
 > After adding `0007`–`0010`, **new gyms work immediately**. The `member-photos`
 > bucket is created by `0010` (public read, writes scoped to each gym's folder).
@@ -160,7 +161,8 @@ own spec + plan under `docs/superpowers/`.
 - Membership status (`active`/`expiring`/`expired`) is **derived on read** from
   `end_date` via the `member_with_status` view — no cron needed. A scheduled job to
   email expiry reminders arrives in Phase 4.
-- **Public join form** (`/join/<token>`, self-service onboarding): the v1 defense is
-  the unguessable `join_token` + server-side validation via the service-role client.
-  Rate-limiting, a duplicate-phone guard, and owner email-on-submit are intended
-  follow-ups before high-volume public exposure.
+- **Public join form** (`/join/<token>`, self-service onboarding): defended by the
+  unguessable `join_token`, server-side validation via the service-role client, and
+  a durable per-IP + per-gym rate limit (`0017`, default 5/IP and 60/gym per hour —
+  tune in `src/lib/rate-limit/join.ts`). A duplicate-phone guard and owner
+  email-on-submit remain intended follow-ups.
