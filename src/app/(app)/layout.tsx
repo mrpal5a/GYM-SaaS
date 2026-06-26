@@ -20,7 +20,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Topbar gymName={branding?.name} logoUrl={branding?.logoUrl} />
+      <Topbar
+        gymName={branding?.name}
+        logoUrl={branding?.logoUrl}
+        canManage={canManage}
+        pendingRequests={pendingRequests}
+      />
       <div className="flex flex-1 gap-4 p-4">
         <Sidebar canManage={canManage} pendingRequests={pendingRequests} />
         <main className="flex-1">{children}</main>
