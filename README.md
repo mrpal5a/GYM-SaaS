@@ -34,6 +34,11 @@ NEXT_PUBLIC_SUPABASE_URL=https://<your-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
 SUPABASE_SERVICE_ROLE_KEY=<service_role key>   # secret — server-only
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# Optional — emailing invoice PDFs (Resend). Without a key, the invoice Email
+# button returns a friendly "not configured" message; WhatsApp + Print still work.
+RESEND_API_KEY=<resend api key>
+RESEND_FROM_EMAIL=invoices@yourgym.com        # must be on a Resend-verified domain
 ```
 
 `.env.local` is gitignored. Never commit real keys.
@@ -65,6 +70,10 @@ Migrations:
 | `0010_member_photos_storage.sql` | `member-photos` storage bucket + folder-scoped RLS |
 | `0011_accept_staff_invite_app_metadata.sql` | security fix: derive invite gym from admin-only `app_metadata` |
 | `0012_gym_branding_logos.sql` | `gyms.logo_url` column + `gym-logos` storage bucket (owner-scoped RLS) |
+| `0013_invoice_pdfs_storage.sql` | `invoices` storage bucket (public read, gym-folder-scoped writes) for shared invoice PDFs |
+| `0014_join_requests.sql` | `gyms.join_token`/`upi_id`/`upi_payee_name`; `join_requests` table + RLS (gym-wide read, owner-only update) for self-service onboarding |
+| `0015_join_uploads_storage.sql` | `join-uploads` storage bucket (public read) for prospect photo + UPI payment screenshot |
+| `0016_approve_join_request.sql` | `approve_join_request()` RPC — atomically turns an approved request into a member + subscription + payment |
 
 > After adding `0007`–`0010`, **new gyms work immediately**. The `member-photos`
 > bucket is created by `0010` (public read, writes scoped to each gym's folder).
@@ -130,7 +139,8 @@ gym can see the other's data, asserts staff/owner cannot escalate to
 ## Phase roadmap
 
 0 (done) Foundation · 1 (done) Members · 2 (done) Plans + expiry · 3 (done)
-Payments · 4 Email (Resend) · 5 Attendance · 6 (done) Dashboard charts · 7 Body
+Payments · 4 Email (Resend) — *invoice PDF over email + WhatsApp share done* · 5
+Attendance · 6 (done) Dashboard charts · 7 Body
 progress / notifications / reports · 8 Super-admin + billing. Each phase has its
 own spec + plan under `docs/superpowers/`.
 
@@ -150,3 +160,7 @@ own spec + plan under `docs/superpowers/`.
 - Membership status (`active`/`expiring`/`expired`) is **derived on read** from
   `end_date` via the `member_with_status` view — no cron needed. A scheduled job to
   email expiry reminders arrives in Phase 4.
+- **Public join form** (`/join/<token>`, self-service onboarding): the v1 defense is
+  the unguessable `join_token` + server-side validation via the service-role client.
+  Rate-limiting, a duplicate-phone guard, and owner email-on-submit are intended
+  follow-ups before high-volume public exposure.

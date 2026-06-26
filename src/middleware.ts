@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PUBLIC = ["/login", "/signup", "/accept-invite"];
+const PUBLIC = ["/login", "/signup", "/accept-invite", "/join"];
 
 export async function middleware(request: NextRequest) {
   const { response, user, supabase } = await updateSession(request);

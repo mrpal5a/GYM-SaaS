@@ -4,6 +4,7 @@
 export type Gender = "male" | "female" | "other";
 export type MembershipState = "active" | "cancelled";
 export type PaymentMethod = "cash" | "card" | "upi" | "bank_transfer" | "other";
+export type JoinRequestStatus = "pending" | "approved" | "rejected";
 
 // Derived in the member_with_status view, not stored.
 export type MembershipStatus =
@@ -19,6 +20,9 @@ export interface Gym {
   slug: string;
   logo_url: string | null;
   owner_id: string | null;
+  join_token: string;
+  upi_id: string | null;
+  upi_payee_name: string | null;
   created_at: string;
 }
 
@@ -86,5 +90,30 @@ export interface Payment {
   invoice_number: string | null;
   paid_at: string;
   created_by: string | null;
+  created_at: string;
+}
+
+export interface JoinRequest {
+  id: string;
+  gym_id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  gender: Gender | null;
+  date_of_birth: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  address: string | null;
+  notes: string | null;
+  photo_url: string | null;
+  plan_id: string | null;
+  plan_name: string | null;
+  plan_price: number | null;
+  payment_method: PaymentMethod;
+  payment_proof_url: string | null;
+  status: JoinRequestStatus;
+  rejection_reason: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_at: string;
 }

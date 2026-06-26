@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { getGymContext } from "@/lib/auth/context";
 import { canManageGym } from "@/lib/auth/roles";
-import { gymBrandingSchema } from "@/lib/validations/gym";
+import { gymBrandingSchema, onboardingSettingsSchema } from "@/lib/validations/gym";
 
 export type ActionResult = { ok: false; error: string } | { ok: true };
 
@@ -46,6 +46,33 @@ export async function updateGymBrandingAction(
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/", "layout");
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function updateOnboardingSettingsAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<ActionResult> {
+  const ctx = await getGymContext();
+  if (!ctx) return { ok: false, error: "Not authorized" };
+  if (!canManageGym(ctx.role)) {
+    return { ok: false, error: "Only the gym owner can change onboarding settings" };
+  }
+
+  const parsed = onboardingSettingsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+
+  // RLS confines this to the caller's own, owner-managed gym; the eq is defense in depth.
+  const { error } = await ctx.supabase
+    .from("gyms")
+    .update({
+      upi_id: parsed.data.upi_id ?? null,
+      upi_payee_name: parsed.data.upi_payee_name ?? null,
+    })
+    .eq("id", ctx.gymId);
+  if (error) return { ok: false, error: error.message };
+
   revalidatePath("/settings");
   return { ok: true };
 }

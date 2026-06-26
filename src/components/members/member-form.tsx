@@ -8,11 +8,16 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { formatMoney } from "@/lib/members/metrics";
+import { compressImageToTarget } from "@/lib/images/resize";
 import type { Member, MembershipPlan } from "@/types/db";
 
 type ActionResult = { ok: false; error: string } | { ok: true };
 type FormAction = (prev: unknown, formData: FormData) => Promise<ActionResult>;
 type PlanOption = Pick<MembershipPlan, "id" | "name" | "price" | "duration_days">;
+
+// Compress member photos to ~50 KB in the browser before upload (same budget as
+// self-onboarding) so storage stays small at scale.
+const PHOTO_TARGET = { maxBytes: 50_000, startDim: 512 };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -30,6 +35,25 @@ export function MemberForm({
   const [state, formAction, pending] = useActionState(action, null);
   const [preview, setPreview] = useState<string | null>(member?.photo_url ?? null);
   const [planId, setPlanId] = useState("");
+  const [compressing, setCompressing] = useState(false);
+
+  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.currentTarget; // capture before await
+    if (!input.files?.[0]) {
+      setPreview(member?.photo_url ?? null);
+      return;
+    }
+    setCompressing(true);
+    try {
+      const compressed = await compressImageToTarget(input.files[0], PHOTO_TARGET);
+      const dt = new DataTransfer();
+      dt.items.add(compressed);
+      input.files = dt.files;
+      setPreview(URL.createObjectURL(compressed));
+    } finally {
+      setCompressing(false);
+    }
+  }
 
   return (
     <form action={formAction} className="space-y-5">
@@ -42,12 +66,9 @@ export function MemberForm({
             name="photo"
             type="file"
             accept="image/*"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              setPreview(f ? URL.createObjectURL(f) : member?.photo_url ?? null);
-            }}
+            onChange={onPickPhoto}
           />
-          <p className="text-xs text-muted-foreground">JPG/PNG up to 5 MB. Optional.</p>
+          <p className="text-xs text-muted-foreground">JPG/PNG, optional — compressed automatically.</p>
         </div>
       </div>
 
@@ -139,8 +160,8 @@ export function MemberForm({
       )}
 
       <div className="flex items-center gap-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : submitLabel}
+        <Button type="submit" disabled={pending || compressing}>
+          {compressing ? "Processing image…" : pending ? "Saving…" : submitLabel}
         </Button>
         <Link
           href={member ? `/members/${member.id}` : "/members"}

@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { UsersIcon, BadgeCheckIcon, AlarmClockIcon, IndianRupeeIcon } from "lucide-react";
+import { UsersIcon, BadgeCheckIcon, AlarmClockIcon, IndianRupeeIcon, UserPlusIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getGymContext } from "@/lib/auth/context";
+import { canManageGym } from "@/lib/auth/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { RevenueChart, type RevenuePoint } from "@/components/dashboard/revenue-chart";
@@ -35,6 +37,18 @@ export default async function DashboardPage() {
     "id" | "full_name" | "photo_url" | "membership_status" | "end_date" | "plan_name" | "created_at"
   >[];
   const payments = (paymentsData ?? []) as Pick<Payment, "amount" | "paid_at">[];
+
+  // Owners see a banner when join requests are awaiting review (RLS scopes the count).
+  const ctx = await getGymContext();
+  const canManage = ctx ? canManageGym(ctx.role) : false;
+  let pendingRequests = 0;
+  if (canManage) {
+    const { count } = await supabase
+      .from("join_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+    pendingRequests = count ?? 0;
+  }
 
   // Stats
   const totalMembers = members.length;
@@ -71,6 +85,22 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="text-sm text-muted-foreground">Your gym at a glance.</p>
       </div>
+
+      {canManage && pendingRequests > 0 && (
+        <Link
+          href="/join-requests"
+          className="glass flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10"
+        >
+          <UserPlusIcon className="size-5 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">
+              {pendingRequests} new join {pendingRequests === 1 ? "request" : "requests"} awaiting review
+            </p>
+            <p className="text-xs text-muted-foreground">Members who registered via your QR code.</p>
+          </div>
+          <span className="text-sm font-medium text-primary">Review →</span>
+        </Link>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total members" value={totalMembers} icon={UsersIcon} />

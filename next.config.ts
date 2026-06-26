@@ -11,11 +11,15 @@ const supabaseHost = (() => {
 })();
 
 const nextConfig: NextConfig = {
+  // @react-pdf/renderer pulls in fontkit + a wasm layout engine that don't survive
+  // Next's bundler; load it from node_modules at runtime in the Node server runtime.
+  serverExternalPackages: ["@react-pdf/renderer"],
   experimental: {
     serverActions: {
-      // Member photos and gym logos are capped at 5 MB in the form; allow headroom
-      // for the multipart envelope so uploads don't trip the default 1 MB body limit.
-      bodySizeLimit: "6mb",
+      // Uploads are capped at 5 MB each in the forms; the public join form can carry
+      // two images (member photo + UPI payment screenshot), so allow headroom over
+      // the default 1 MB body limit for the multipart envelope.
+      bodySizeLimit: "12mb",
     },
   },
   images: {

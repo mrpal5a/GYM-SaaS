@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
-import { MemberAvatar } from "@/components/members/member-avatar";
+import { MemberPhoto } from "@/components/members/member-photo";
 import { StatusBadge } from "@/components/members/status-badge";
 import { DeleteMemberButton } from "@/components/members/delete-member-button";
 import { AssignMembershipForm } from "@/components/memberships/assign-membership-form";
@@ -66,7 +66,7 @@ export default async function MemberDetailPage({
       <Card className="glass p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <MemberAvatar name={member.full_name} photoUrl={member.photo_url} size="lg" />
+            <MemberPhoto name={member.full_name} photoUrl={member.photo_url} size="lg" />
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-semibold">{member.full_name}</h1>
