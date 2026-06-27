@@ -6,6 +6,8 @@ export interface GymBranding {
   id: string;
   name: string;
   logoUrl: string | null;
+  address: string | null;
+  rules: string[];
 }
 
 /**
@@ -19,10 +21,16 @@ export async function getGymBranding(): Promise<GymBranding | null> {
 
   const { data } = await ctx.supabase
     .from("gyms")
-    .select("id, name, logo_url")
+    .select("id, name, logo_url, address, rules")
     .eq("id", ctx.gymId)
-    .single<Pick<Gym, "id" | "name" | "logo_url">>();
+    .single<Pick<Gym, "id" | "name" | "logo_url" | "address" | "rules">>();
   if (!data) return null;
 
-  return { id: data.id, name: data.name, logoUrl: data.logo_url };
+  return {
+    id: data.id,
+    name: data.name,
+    logoUrl: data.logo_url,
+    address: data.address,
+    rules: Array.isArray(data.rules) ? data.rules : [],
+  };
 }
