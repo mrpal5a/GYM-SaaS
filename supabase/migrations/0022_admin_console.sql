@@ -40,14 +40,17 @@ begin
   left join public.profiles o on o.id = g.owner_id
   left join public.subscriptions s on s.gym_id = g.id
   left join (
-    select gym_id, count(*) cnt from public.members
-    where is_active group by gym_id
+    select mem.gym_id, count(*) as cnt
+    from public.members mem
+    where mem.is_active
+    group by mem.gym_id
   ) m on m.gym_id = g.id
   left join (
-    select gym_id,
-           sum(amount) as total,
-           sum(amount) filter (where paid_at >= date_trunc('month', now())) as month_total
-    from public.payments group by gym_id
+    select pay.gym_id,
+           sum(pay.amount) as total,
+           sum(pay.amount) filter (where pay.paid_at >= date_trunc('month', now())) as month_total
+    from public.payments pay
+    group by pay.gym_id
   ) p on p.gym_id = g.id
   order by g.created_at desc;
 end;
