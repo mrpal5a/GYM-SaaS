@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { updateGymRulesAction } from "@/actions/gym";
 import { DEFAULT_GYM_RULES } from "@/lib/gym/default-rules";
 
-export function GymRulesForm({ rules }: { rules: string[] }) {
+export function GymRulesForm({ rules }: { rules: string[] | null }) {
   const [state, action, pending] = useActionState(updateGymRulesAction, null);
-  // Seed with presets the first time (no rules saved yet) so owners start from
-  // sensible defaults; otherwise show what's saved.
-  const [items, setItems] = useState<string[]>(rules.length > 0 ? rules : DEFAULT_GYM_RULES);
+  // Seed with presets only when nothing has ever been saved (rules === null) so
+  // owners start from sensible defaults. A saved empty array stays empty, so a
+  // deliberate "clear all" is preserved on the next visit.
+  const [items, setItems] = useState<string[]>(rules === null ? DEFAULT_GYM_RULES : rules);
 
   useEffect(() => {
     if (state?.ok) toast.success("Gym rules saved");
@@ -42,12 +43,14 @@ export function GymRulesForm({ rules }: { rules: string[] }) {
               maxLength={200}
               onChange={(e) => update(i, e.target.value)}
               placeholder="e.g. Always carry a towel"
+              aria-label={`Rule ${i + 1}`}
             />
             <Button
               type="button"
               variant="ghost"
               size="icon"
               onClick={() => remove(i)}
+              disabled={pending}
               aria-label={`Remove rule ${i + 1}`}
             >
               <Trash2Icon className="size-4" />
@@ -55,7 +58,7 @@ export function GymRulesForm({ rules }: { rules: string[] }) {
           </div>
         ))}
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={add}>
+      <Button type="button" variant="outline" size="sm" onClick={add} disabled={pending}>
         <PlusIcon /> Add rule
       </Button>
       {state?.ok === false && <p className="text-sm text-destructive">{state.error}</p>}
