@@ -33,7 +33,7 @@ begin
          o.full_name, o.email,
          coalesce(m.cnt, 0),
          coalesce(p.total, 0),
-         coalesce(p.month, 0),
+         coalesce(p.month_total, 0),
          s.plan, s.status, s.current_period_end,
          g.created_at
   from public.gyms g
@@ -45,8 +45,8 @@ begin
   ) m on m.gym_id = g.id
   left join (
     select gym_id,
-           sum(amount) total,
-           sum(amount) filter (where paid_at >= date_trunc('month', now())) month
+           sum(amount) as total,
+           sum(amount) filter (where paid_at >= date_trunc('month', now())) as month_total
     from public.payments group by gym_id
   ) p on p.gym_id = g.id
   order by g.created_at desc;
