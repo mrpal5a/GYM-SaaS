@@ -52,7 +52,7 @@ export default async function SettingsPage() {
           <CardTitle>Joining form rules</CardTitle>
         </CardHeader>
         <CardContent>
-          <GymRulesForm rules={branding?.rules ?? null} />
+          <GymRulesForm rules={branding?.rules ?? []} />
         </CardContent>
       </Card>
 

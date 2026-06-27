@@ -7,12 +7,10 @@ import { Input } from "@/components/ui/input";
 import { updateGymRulesAction } from "@/actions/gym";
 import { DEFAULT_GYM_RULES } from "@/lib/gym/default-rules";
 
-export function GymRulesForm({ rules }: { rules: string[] | null }) {
+export function GymRulesForm({ rules }: { rules: string[] }) {
   const [state, action, pending] = useActionState(updateGymRulesAction, null);
-  // Seed with presets only when nothing has ever been saved (rules === null) so
-  // owners start from sensible defaults. A saved empty array stays empty, so a
-  // deliberate "clear all" is preserved on the next visit.
-  const [items, setItems] = useState<string[]>(rules === null ? DEFAULT_GYM_RULES : rules);
+  // Seed with presets when no rules are saved yet so owners start from sensible defaults; their saved rules show otherwise.
+  const [items, setItems] = useState<string[]>(rules.length > 0 ? rules : DEFAULT_GYM_RULES);
 
   useEffect(() => {
     if (state?.ok) toast.success("Gym rules saved");
