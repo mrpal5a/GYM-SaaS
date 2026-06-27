@@ -27,10 +27,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     subscription: (sub as GymExportData["subscription"]) ?? null,
     members: (members ?? []) as GymExportData["members"],
     plans: (plans ?? []) as GymExportData["plans"],
-    subscriptions: (subs ?? []).map((s: { plan_name: string; start_date: string; end_date: string; status: string; members: { full_name: string }[] | null }) => ({
-      member_name: s.members?.[0]?.full_name ?? null,
-      plan_name: s.plan_name, start_date: s.start_date, end_date: s.end_date, status: s.status,
-    })),
+    subscriptions: (subs ?? []).map((s: { plan_name: string; start_date: string; end_date: string; status: string; members: { full_name: string } | { full_name: string }[] | null }) => {
+      // PostgREST returns a to-one embed as an object; older type inference widens
+      // it to an array. Handle both so member_name is never silently dropped.
+      const member = Array.isArray(s.members) ? s.members[0] : s.members;
+      return {
+        member_name: member?.full_name ?? null,
+        plan_name: s.plan_name, start_date: s.start_date, end_date: s.end_date, status: s.status,
+      };
+    }),
     payments: (payments ?? []) as GymExportData["payments"],
   };
 
