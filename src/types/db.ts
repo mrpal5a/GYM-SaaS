@@ -130,3 +130,17 @@ export interface JoinRequest {
   reviewed_at: string | null;
   created_at: string;
 }
+
+// SaaS subscription (one per gym). Mirrors public.subscriptions
+// (migrations 0001 + 0022). Distinct from member_subscriptions above.
+export type SubPlan = "starter" | "professional" | "enterprise";
+export type SubStatus = "trialing" | "active" | "past_due" | "canceled";
+
+export interface Subscription {
+  id: string;
+  gym_id: string;
+  plan: SubPlan;
+  status: SubStatus;
+  current_period_end: string | null;
+  created_at: string;
+}
