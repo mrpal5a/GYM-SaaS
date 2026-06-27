@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon, PencilIcon, DumbbellIcon } from "lucide-react";
+import { ArrowLeftIcon, PencilIcon, DumbbellIcon, FileTextIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +101,12 @@ export default async function MemberDetailPage({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href={`/members/${id}/joining-form`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <FileTextIcon /> Joining form
+            </a>
             <Link href={`/members/${id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}>
               <PencilIcon /> Edit
             </Link>
