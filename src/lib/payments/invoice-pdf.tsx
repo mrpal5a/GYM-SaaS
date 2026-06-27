@@ -9,6 +9,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { InvoiceData } from "@/lib/payments/invoice-data";
+import { fetchPdfImageDataUri } from "@/lib/images/pdf-image";
 
 // The built-in Helvetica PDF font has no ₹ (U+20B9) glyph, so it renders as tofu.
 // Swap it for "Rs" in the PDF only — the screen and the WhatsApp/email text, which
@@ -112,27 +113,8 @@ function InvoiceDocument({ data, logo }: { data: InvoiceData; logo: string | nul
   );
 }
 
-/**
- * Fetch the gym logo and inline it as a data URI so the render never depends on a
- * live network image (a flaky URL would otherwise reject the whole render).
- * react-pdf only decodes PNG/JPEG, so anything else is skipped gracefully.
- */
-async function fetchLogoDataUri(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") ?? "";
-    if (!/^image\/(png|jpe?g)$/.test(type)) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    return `data:${type};base64,${buf.toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
-
 /** Render an invoice to a PDF Buffer — reused by both the WhatsApp and email actions. */
 export async function renderInvoicePdf(data: InvoiceData): Promise<Buffer> {
-  const logo = await fetchLogoDataUri(data.logoUrl);
+  const logo = await fetchPdfImageDataUri(data.logoUrl);
   return renderToBuffer(<InvoiceDocument data={data} logo={logo} />);
 }

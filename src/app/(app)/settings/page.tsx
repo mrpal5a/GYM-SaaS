@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GymBrandingForm } from "@/components/settings/gym-branding-form";
+import { GymRulesForm } from "@/components/settings/gym-rules-form";
 import { OnboardingSettings } from "@/components/settings/onboarding-settings";
 import { getGymContext } from "@/lib/auth/context";
 import { getGymBranding } from "@/lib/gym/branding";
@@ -38,7 +39,20 @@ export default async function SettingsPage() {
           <CardTitle>Branding</CardTitle>
         </CardHeader>
         <CardContent>
-          <GymBrandingForm name={branding?.name ?? ""} logoUrl={branding?.logoUrl ?? null} />
+          <GymBrandingForm
+            name={branding?.name ?? ""}
+            logoUrl={branding?.logoUrl ?? null}
+            address={branding?.address ?? null}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle>Joining form rules</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <GymRulesForm rules={branding?.rules ?? []} />
         </CardContent>
       </Card>
 

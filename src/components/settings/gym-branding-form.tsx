@@ -5,15 +5,18 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { updateGymBrandingAction } from "@/actions/gym";
 import { resizeImageFile } from "@/lib/images/resize";
 
 export function GymBrandingForm({
   name,
   logoUrl,
+  address,
 }: {
   name: string;
   logoUrl: string | null;
+  address: string | null;
 }) {
   const [state, action, pending] = useActionState(updateGymBrandingAction, null);
   const [preview, setPreview] = useState<string | null>(logoUrl);
@@ -52,6 +55,21 @@ export function GymBrandingForm({
         <Input id="name" name="name" required defaultValue={name} maxLength={120} />
         <p className="text-xs text-muted-foreground">
           Shown in the app header and on every invoice.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="address">Address</Label>
+        <Textarea
+          id="address"
+          name="address"
+          rows={2}
+          maxLength={300}
+          defaultValue={address ?? ""}
+          placeholder="12 MG Road, Indiranagar, Bengaluru 560038"
+        />
+        <p className="text-xs text-muted-foreground">
+          Shown in the header of each member&apos;s joining form.
         </p>
       </div>
 
