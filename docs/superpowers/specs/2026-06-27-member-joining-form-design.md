@@ -119,16 +119,21 @@ row. Strings are pre-formatted in the loader so the PDF never re-derives them.
 `JoiningFormDocument` + `renderJoiningFormPdf(data): Promise<Buffer>`, modeled on
 `invoice-pdf.tsx`. A4, Helvetica, same color palette `C`.
 
-**Layout:**
-- **Header:** logo (left) + gym name + gym address; document title "Membership Joining
-  Form". Member **photo** rendered top-right.
-- **Member details:** two-column grid — Name, Membership No. (serial), Gender, Date of
-  birth, Phone, Email, Address, Height, Weight, Joined date.
-- **Membership block:** plan name, start → end dates, status. Omitted gracefully if the
-  member has no active membership.
-- **Gym Rules:** a "Gym Rules" heading followed by the numbered list of `rules`. If the
-  gym has no rules set, the section is omitted.
-- **Footer:** "This is a system-generated joining form." + gym name.
+**Layout (top to bottom):**
+1. **Gym header (prominent):** logo (left) alongside the **gym name in a large font**
+   and the **gym address below it in a larger-than-body font**. This is the visual
+   anchor of the page; degrades gracefully when the logo and/or address are missing
+   (name-only still looks intentional). A divider rule separates it from the body.
+2. **Document title:** "Membership Joining Form", clearly set as the form title under
+   the header.
+3. **Member details:** "Member Details" heading; member **photo** plus a two-column
+   grid — Name, Membership No. (serial), Gender, Date of birth, Phone, Email, Address,
+   Height, Weight, Joined date.
+4. **Membership details:** "Membership Details" heading — plan name, start → end dates,
+   status. Omitted gracefully if the member has no active membership.
+5. **Gym Rules:** a "Gym Rules" heading followed by the numbered list of `rules`. If the
+   gym has no rules set, the section is omitted.
+6. **Footer:** "This is a system-generated joining form." + gym name.
 
 **Image handling:** reuse the `fetchLogoDataUri` helper from `invoice-pdf.tsx` for both
 the gym logo and the member photo (react-pdf only decodes PNG/JPEG; non-image or fetch
