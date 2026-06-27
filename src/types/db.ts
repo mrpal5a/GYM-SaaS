@@ -26,6 +26,8 @@ export interface Gym {
   join_token: string;
   upi_id: string | null;
   upi_payee_name: string | null;
+  address: string | null;
+  rules: string[];
   created_at: string;
 }
 
