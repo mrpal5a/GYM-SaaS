@@ -24,7 +24,10 @@ describe("daysUntil", () => {
     expect(daysUntil(null)).toBeNull();
   });
   it("returns 0 for today", () => {
-    const today = new Date().toISOString().slice(0, 10);
+    // Build today's date in LOCAL time — daysUntil parses date strings as local
+    // midnight, so a UTC-derived string flakes when the UTC date != the local date.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     expect(daysUntil(today)).toBe(0);
   });
 });
