@@ -5,8 +5,15 @@ import { RequestsPoller } from "@/components/layout/requests-poller";
 import { getGymBranding } from "@/lib/gym/branding";
 import { getGymContext } from "@/lib/auth/context";
 import { canManageGym } from "@/lib/auth/roles";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // A super_admin has no gym; send them to their console instead of an empty shell.
+  const supabase = await createClient();
+  const { data: claimsData } = await supabase.auth.getClaims();
+  if (claimsData?.claims?.user_role === "super_admin") redirect("/admin");
+
   const [branding, ctx] = await Promise.all([getGymBranding(), getGymContext()]);
   const canManage = ctx ? canManageGym(ctx.role) : false;
 
