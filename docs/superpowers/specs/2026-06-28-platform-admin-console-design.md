@@ -86,7 +86,7 @@ returns table (
   slug                text,
   owner_name          text,
   owner_email         text,
-  member_count        bigint,   -- total members in the gym
+  member_count        bigint,   -- active members in the gym (is_active = true)
   revenue_total       numeric,  -- sum(payments.amount), all-time
   revenue_this_month  numeric,  -- sum where paid_at >= date_trunc('month', now())
   plan                sub_plan,
@@ -116,7 +116,8 @@ begin
   left join public.profiles o on o.id = g.owner_id
   left join public.subscriptions s on s.gym_id = g.id
   left join (
-    select gym_id, count(*) cnt from public.members group by gym_id
+    select gym_id, count(*) cnt from public.members
+    where is_active group by gym_id
   ) m on m.gym_id = g.id
   left join (
     select gym_id,
@@ -132,7 +133,7 @@ grant execute on function public.admin_gym_overview() to authenticated;
 ```
 
 Notes:
-- `member_count` is **total** members (not just active) — operator-facing scale metric.
+- `member_count` is **active** members only (`is_active = true`) — operator-facing scale metric.
 - Revenue is the sum of the gym's collected member `payments` (the money the gym takes in), not SaaS revenue. "This month" uses server `now()` (UTC); acceptable for an operator overview.
 
 ### 4.2 `admin_create_gym_with_owner(...)` — onboarding wiring
