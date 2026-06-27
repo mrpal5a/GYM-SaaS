@@ -14,7 +14,6 @@ import type { JoiningFormData } from "@/lib/members/joining-form-data";
 const C = {
   ink: "#1f2937",
   muted: "#6b7280",
-  faint: "#9ca3af",
   line: "#e5e7eb",
   rule: "#d1d5db",
 };
