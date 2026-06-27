@@ -1,11 +1,16 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getGymContext } from "@/lib/auth/context";
 import { canManageGym } from "@/lib/auth/roles";
 import { generateInvoiceNumber } from "@/lib/payments/invoice";
 import { loadInvoiceData } from "@/lib/payments/invoice-data";
-import { deliverInvoice, type InvoiceDelivery } from "@/lib/payments/invoice-delivery";
+import {
+  deliverInvoice,
+  prepareWelcomeWhatsApp,
+  type InvoiceDelivery,
+} from "@/lib/payments/invoice-delivery";
 import { checkJoinRateLimit, getClientIp } from "@/lib/rate-limit/join";
 import { joinRequestSchema } from "@/lib/validations/join";
 
@@ -89,17 +94,37 @@ export async function submitJoinRequestAction(
 
   const parsed = joinRequestSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  const { plan_id, payment_method, ...member } = parsed.data;
+  const { plan_id, pt_plan_id, payment_method, ...member } = parsed.data;
 
-  // The plan must be an active plan of THIS gym; snapshot its name + price.
+  // The plan must be an active *membership* plan of THIS gym; snapshot name + price.
   const { data: plan } = await admin
     .from("membership_plans")
     .select("name, price, is_active")
     .eq("id", plan_id)
     .eq("gym_id", gym.id)
+    .eq("kind", "membership")
     .single();
   if (!plan || !plan.is_active) {
     return { ok: false, error: "The selected plan isn't available. Please pick another." };
+  }
+
+  // Optional Personal Trainer add-on — must be an active PT plan of THIS gym;
+  // snapshot its name + price so the request survives later plan edits.
+  let ptPlanName: string | null = null;
+  let ptPlanPrice: number | null = null;
+  if (pt_plan_id) {
+    const { data: ptPlan } = await admin
+      .from("membership_plans")
+      .select("name, price, is_active")
+      .eq("id", pt_plan_id)
+      .eq("gym_id", gym.id)
+      .eq("kind", "personal_trainer")
+      .single();
+    if (!ptPlan || !ptPlan.is_active) {
+      return { ok: false, error: "The selected trainer plan isn't available. Please pick another." };
+    }
+    ptPlanName = ptPlan.name;
+    ptPlanPrice = ptPlan.price;
   }
 
   const proofFile = formData.get("payment_proof") as File | null;
@@ -128,6 +153,9 @@ export async function submitJoinRequestAction(
     plan_id,
     plan_name: plan.name,
     plan_price: plan.price,
+    pt_plan_id: pt_plan_id ?? null,
+    pt_plan_name: ptPlanName,
+    pt_plan_price: ptPlanPrice,
     payment_method,
     payment_proof_url: proofUrl,
   });
@@ -166,14 +194,13 @@ export async function approveJoinRequestAction(requestId: string): Promise<Appro
   revalidatePath("/renewals");
   revalidatePath("/join-requests");
 
-  // The payment proof has served its purpose (the owner just approved) — drop it
-  // so verification screenshots don't accumulate in storage. Keep the photo: the
-  // new member references it.
-  await removeJoinUploads(ctx.gymId, requestId, ["proof"]);
-
-  // Auto-deliver the welcome message + invoice. Best-effort: the member is already
-  // approved, so a send hiccup is reported but never rolls anything back.
-  let delivery: InvoiceDelivery | null = null;
+  // Load the invoice data now (cheap DB reads, still in request scope so ctx is
+  // valid), but defer the EXPENSIVE follow-ups — PDF render, storage upload, URL
+  // shortening, email send — to `after()`, which runs once the response has been
+  // sent. This keeps approval snappy: the owner sees the member added immediately
+  // instead of waiting on PDF + email. The member is already created; delivery is
+  // best-effort and re-sendable from the invoice page.
+  let invoiceData: Awaited<ReturnType<typeof loadInvoiceData>> = null;
   try {
     const { data: payRow } = await ctx.supabase
       .from("payments")
@@ -181,15 +208,41 @@ export async function approveJoinRequestAction(requestId: string): Promise<Appro
       .eq("gym_id", ctx.gymId)
       .eq("invoice_number", invoiceNumber)
       .maybeSingle();
-    if (payRow?.id) {
-      const data = await loadInvoiceData(payRow.id, ctx);
-      if (data) delivery = await deliverInvoice(data);
-    }
+    if (payRow?.id) invoiceData = await loadInvoiceData(payRow.id, ctx);
   } catch {
-    // Swallow — approval succeeded; the owner can re-send from the invoice page.
+    // Swallow — approval succeeded regardless.
   }
 
-  return { ok: true, delivery };
+  // Build the welcome WhatsApp link (with a shortened invoice-download link) so the
+  // owner can one-tap it from the success toast. This shortens the PDF's
+  // deterministic public URL without rendering the PDF, so it stays fast; the
+  // actual PDF render + upload to that URL happens in the background below.
+  const whatsappUrl = invoiceData ? await prepareWelcomeWhatsApp(invoiceData) : null;
+
+  const gymId = ctx.gymId;
+  after(async () => {
+    // The payment proof has served its purpose — drop it so verification
+    // screenshots don't accumulate in storage. (Keep the photo: the member row
+    // references it.)
+    await removeJoinUploads(gymId, requestId, ["proof"]);
+    // Auto-deliver the welcome message + invoice (admin client; no request ctx).
+    if (invoiceData) {
+      try {
+        await deliverInvoice(invoiceData);
+      } catch {
+        // Best-effort — the owner can re-send from the invoice page.
+      }
+    }
+  });
+
+  // emailSent is left false: the email goes out in the background, so we can't
+  // report its outcome here. The owner can confirm/re-send from the invoice page.
+  return {
+    ok: true,
+    delivery: invoiceData
+      ? { paymentId: invoiceData.paymentId, whatsappUrl, emailSent: false, emailError: null }
+      : null,
+  };
 }
 
 /** Owner rejects a pending request (optionally with a reason). No member is created. */

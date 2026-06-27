@@ -52,6 +52,15 @@ export function formatMoney(amount: number): string {
   return CURRENCY.format(amount);
 }
 
+/**
+ * Per-gym serial number for display, e.g. 7 -> "#007". Zero-padded to 3 digits for
+ * tidy alignment in lists; longer numbers render in full (#1234).
+ */
+export function formatSerial(serial: number | null | undefined): string {
+  if (serial == null) return "—";
+  return `#${String(serial).padStart(3, "0")}`;
+}
+
 export function formatDate(date: string | null | undefined): string {
   if (!date) return "—";
   return new Date(date + (date.length === 10 ? "T00:00:00" : "")).toLocaleDateString(

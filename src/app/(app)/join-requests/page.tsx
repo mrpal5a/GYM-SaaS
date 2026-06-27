@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { MemberPhoto } from "@/components/members/member-photo";
 import { RequestActions } from "@/components/join/request-actions";
 import { DecidedRow } from "@/components/join/decided-row";
-import { formatMoney, formatDate } from "@/lib/members/metrics";
+import { formatMoney, formatDate, formatSerial } from "@/lib/members/metrics";
 import { methodLabel } from "@/lib/payments/invoice";
 import type { JoinRequest } from "@/types/db";
 
@@ -62,7 +62,10 @@ function RequestCard({ r }: { r: JoinRequest }) {
       <div className="flex items-start gap-4">
         <MemberPhoto name={r.full_name} photoUrl={r.photo_url} size="lg" />
         <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-semibold">{r.full_name}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-semibold">{r.full_name}</h3>
+            <span className="font-mono text-xs text-muted-foreground">{formatSerial(r.serial)}</span>
+          </div>
           <p className="text-sm text-muted-foreground">
             {[r.phone, r.email].filter(Boolean).join(" · ") || "No contact info"}
           </p>
@@ -72,6 +75,19 @@ function RequestCard({ r }: { r: JoinRequest }) {
           <div className="font-semibold">{r.plan_name ?? "—"}</div>
           {r.plan_price != null && (
             <div className="text-sm text-muted-foreground">{formatMoney(Number(r.plan_price))}</div>
+          )}
+          {r.pt_plan_id && (
+            <div className="mt-1 text-sm">
+              <div className="font-medium">+ PT · {r.pt_plan_name ?? "—"}</div>
+              {r.pt_plan_price != null && (
+                <div className="text-xs text-muted-foreground">{formatMoney(Number(r.pt_plan_price))}</div>
+              )}
+            </div>
+          )}
+          {r.pt_plan_id && (
+            <div className="mt-1 border-t border-border/60 pt-1 text-sm font-semibold">
+              Total {formatMoney(Number(r.plan_price ?? 0) + Number(r.pt_plan_price ?? 0))}
+            </div>
           )}
           <div className="text-xs text-muted-foreground">{methodLabel(r.payment_method)}</div>
         </div>

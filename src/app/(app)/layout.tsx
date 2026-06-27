@@ -1,5 +1,7 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { PageTransition } from "@/components/layout/page-transition";
+import { RequestsPoller } from "@/components/layout/requests-poller";
 import { getGymBranding } from "@/lib/gym/branding";
 import { getGymContext } from "@/lib/auth/context";
 import { canManageGym } from "@/lib/auth/roles";
@@ -20,6 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen flex-col">
+      {canManage && <RequestsPoller />}
       <Topbar
         gymName={branding?.name}
         logoUrl={branding?.logoUrl}
@@ -28,7 +31,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <div className="flex flex-1 gap-4 p-4">
         <Sidebar canManage={canManage} pendingRequests={pendingRequests} />
-        <main className="flex-1">{children}</main>
+        <main className="min-w-0 flex-1">
+          <PageTransition>{children}</PageTransition>
+        </main>
       </div>
     </div>
   );

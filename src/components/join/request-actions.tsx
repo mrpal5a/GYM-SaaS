@@ -33,8 +33,8 @@ export function RequestActions({ requestId }: { requestId: string }) {
     // that keeps the popup from being blocked).
     if (d?.whatsappUrl) {
       const url = d.whatsappUrl;
-      toast("Send the welcome message & invoice on WhatsApp", {
-        duration: 15000,
+      toast("Send the welcome message & invoice link on WhatsApp", {
+        duration: 20000,
         action: { label: "Open WhatsApp", onClick: () => window.open(url, "_blank") },
       });
     }

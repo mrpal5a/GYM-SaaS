@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboardIcon,
@@ -9,9 +9,23 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   UserPlusIcon,
+  Loader2Icon,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+/**
+ * Swaps the link's icon for a spinner while its navigation is in flight, so a
+ * tapped menu item visibly acknowledges the click even before the page loads.
+ */
+function NavIcon({ Icon }: { Icon: LucideIcon }) {
+  const { pending } = useLinkStatus();
+  return pending ? (
+    <Loader2Icon className="size-4 animate-spin" />
+  ) : (
+    <Icon className="size-4" />
+  );
+}
 
 type NavItem = { href: string; label: string; icon: LucideIcon; badge?: number };
 
@@ -62,10 +76,10 @@ export function NavLinks({
                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
             )}
           >
-            <Icon className="size-4" />
+            <NavIcon Icon={Icon} />
             <span className="flex-1">{i.label}</span>
             {i.badge ? (
-              <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+              <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                 {i.badge}
               </span>
             ) : null}

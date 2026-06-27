@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createPlanAction } from "@/actions/plans";
 
@@ -20,6 +21,13 @@ export function PlanForm() {
 
   return (
     <form ref={formRef} action={action} className="space-y-3">
+      <div className="space-y-1.5">
+        <Label htmlFor="kind">Plan type</Label>
+        <Select id="kind" name="kind" defaultValue="membership">
+          <option value="membership">Membership</option>
+          <option value="personal_trainer">Personal Trainer</option>
+        </Select>
+      </div>
       <div className="space-y-1.5">
         <Label htmlFor="name">Plan name</Label>
         <Input id="name" name="name" required placeholder="e.g. Monthly" />

@@ -70,6 +70,24 @@ export async function prepareWhatsApp(
   return buildWhatsAppLink(data.memberPhone, shareText(data, tone, shortUrl));
 }
 
+/**
+ * Build a welcome WhatsApp link WITHOUT rendering the PDF. The invoice PDF has a
+ * deterministic public path, so we can shorten its eventual download URL up front
+ * and let the actual render + upload happen in the background (e.g. via `after()`).
+ * By the time the member taps the link, the upload has populated that path. Used
+ * on approval to keep the response fast while still handing the owner a one-tap
+ * WhatsApp message that includes the download link. Returns null when the member
+ * has no usable phone.
+ */
+export async function prepareWelcomeWhatsApp(data: InvoiceData): Promise<string | null> {
+  if (!normalizePhone(data.memberPhone)) return null;
+  const admin = createAdminClient();
+  const path = `${data.gymId}/${data.paymentId}.pdf`;
+  const { data: pub } = admin.storage.from(INVOICE_BUCKET).getPublicUrl(path);
+  const shortUrl = await shortenUrl(pub.publicUrl);
+  return buildWhatsAppLink(data.memberPhone, shareText(data, "welcome", shortUrl));
+}
+
 /** Email the invoice PDF as a real attachment. Caller guarantees `memberEmail`. */
 export async function emailInvoice(
   data: InvoiceData,

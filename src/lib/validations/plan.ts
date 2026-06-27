@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const planSchema = z.object({
+  kind: z.enum(["membership", "personal_trainer"]).default("membership"),
   name: z.string().trim().min(1, "Plan name is required").max(120),
   description: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),

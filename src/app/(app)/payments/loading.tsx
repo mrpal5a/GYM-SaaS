@@ -10,7 +10,7 @@ export default function PaymentsLoading() {
       <PageHeaderSkeleton />
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <TableSkeleton columns={5} rows={8} withAvatar={false} />
+          <TableSkeleton columns={6} rows={8} withAvatar={false} />
         </div>
         <Card className="glass h-fit">
           <CardHeader>

@@ -7,7 +7,7 @@ import { MembersToolbar } from "@/components/members/members-toolbar";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { StatusBadge } from "@/components/members/status-badge";
 import { FlashToast } from "@/components/members/flash-toast";
-import { formatDate } from "@/lib/members/metrics";
+import { formatDate, formatSerial } from "@/lib/members/metrics";
 import type { MemberWithStatus } from "@/types/db";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +82,7 @@ export default async function MembersPage({
             <table className="w-full text-sm">
               <thead className="border-b border-border/60 text-left text-xs text-muted-foreground">
                 <tr>
+                  <th className="px-4 py-3 font-medium">#</th>
                   <th className="px-4 py-3 font-medium">Member</th>
                   <th className="px-4 py-3 font-medium">Contact</th>
                   <th className="px-4 py-3 font-medium">Plan</th>
@@ -95,6 +96,9 @@ export default async function MembersPage({
                     key={m.id}
                     className="border-b border-border/40 transition-colors last:border-0 hover:bg-foreground/[0.03]"
                   >
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                      {formatSerial(m.serial)}
+                    </td>
                     <td className="px-4 py-3">
                       <Link href={`/members/${m.id}`} className="flex items-center gap-3">
                         <MemberAvatar name={m.full_name} photoUrl={m.photo_url} size="sm" />

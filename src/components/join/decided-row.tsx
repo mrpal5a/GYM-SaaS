@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { MemberPhoto } from "@/components/members/member-photo";
-import { formatDate, formatMoney } from "@/lib/members/metrics";
+import { formatDate, formatMoney, formatSerial } from "@/lib/members/metrics";
 import { methodLabel } from "@/lib/payments/invoice";
 import { cn } from "@/lib/utils";
 import type { JoinRequest } from "@/types/db";
@@ -21,6 +21,7 @@ export function DecidedRow({ r }: { r: JoinRequest }) {
     return (
       <div className="flex items-center gap-3 p-3 text-sm">
         <MemberPhoto name={r.full_name} photoUrl={r.photo_url} size="sm" />
+        <span className="font-mono text-xs text-muted-foreground">{formatSerial(r.serial)}</span>
         <span className="min-w-0 flex-1 truncate font-medium">{r.full_name}</span>
         {r.plan_name && <span className="hidden text-xs text-muted-foreground sm:inline">{r.plan_name}</span>}
         <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs text-emerald-600 capitalize dark:text-emerald-400">
@@ -44,6 +45,7 @@ export function DecidedRow({ r }: { r: JoinRequest }) {
         <MemberAvatar name={r.full_name} photoUrl={r.photo_url} size="sm" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2">
+            <span className="font-mono text-xs text-muted-foreground">{formatSerial(r.serial)}</span>
             <span className="truncate font-medium">{r.full_name}</span>
             {r.plan_name && <span className="text-xs text-muted-foreground">{r.plan_name}</span>}
           </div>
@@ -78,8 +80,15 @@ export function DecidedRow({ r }: { r: JoinRequest }) {
             <Detail label="Address" value={r.address} />
             <Detail
               label="Payment"
-              value={`${methodLabel(r.payment_method)}${r.plan_price != null ? ` · ${formatMoney(Number(r.plan_price))}` : ""}`}
+              value={`${methodLabel(r.payment_method)}${
+                r.plan_price != null
+                  ? ` · ${formatMoney(Number(r.plan_price) + Number(r.pt_plan_price ?? 0))}`
+                  : ""
+              }`}
             />
+            {r.pt_plan_id && (
+              <Detail label="Personal Trainer" value={r.pt_plan_name ?? "—"} />
+            )}
             <Detail label="Submitted" value={formatDate(r.created_at)} />
             <Detail label="Reviewed" value={r.reviewed_at ? formatDate(r.reviewed_at) : null} />
           </div>

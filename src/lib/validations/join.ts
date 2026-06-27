@@ -35,6 +35,11 @@ export const joinRequestSchema = z.object({
   address: optionalText,
   notes: optionalText,
   plan_id: z.uuid("Please select a plan"),
+  // Optional Personal Trainer add-on. Blank ("") -> undefined so it's truly optional.
+  pt_plan_id: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.uuid().optional(),
+  ),
   payment_method: z.enum(["cash", "upi"]),
 });
 

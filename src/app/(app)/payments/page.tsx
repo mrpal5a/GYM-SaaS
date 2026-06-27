@@ -3,7 +3,7 @@ import { ReceiptIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordPaymentForm } from "@/components/payments/record-payment-form";
-import { formatDate, formatMoney } from "@/lib/members/metrics";
+import { formatDate, formatMoney, formatSerial } from "@/lib/members/metrics";
 import type { Payment } from "@/types/db";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +55,7 @@ export default async function PaymentsPage() {
                 <table className="w-full text-sm">
                   <thead className="border-b border-border/60 text-left text-xs text-muted-foreground">
                     <tr>
+                      <th className="px-4 py-3 font-medium">#</th>
                       <th className="px-4 py-3 font-medium">Date</th>
                       <th className="px-4 py-3 font-medium">Member</th>
                       <th className="px-4 py-3 font-medium">Amount</th>
@@ -65,6 +66,9 @@ export default async function PaymentsPage() {
                   <tbody>
                     {payments.map((p) => (
                       <tr key={p.id} className="border-b border-border/40 last:border-0">
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                          {formatSerial(p.serial)}
+                        </td>
                         <td className="px-4 py-3">{formatDate(p.paid_at.slice(0, 10))}</td>
                         <td className="px-4 py-3">
                           {p.member_id ? (

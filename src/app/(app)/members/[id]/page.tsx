@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon, PencilIcon } from "lucide-react";
+import { ArrowLeftIcon, PencilIcon, DumbbellIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,9 +11,9 @@ import { StatusBadge } from "@/components/members/status-badge";
 import { DeleteMemberButton } from "@/components/members/delete-member-button";
 import { AssignMembershipForm } from "@/components/memberships/assign-membership-form";
 import { RecordPaymentForm } from "@/components/payments/record-payment-form";
-import { cancelMembershipAction } from "@/actions/memberships";
-import { calcBmi, daysUntil, formatDate, formatMoney } from "@/lib/members/metrics";
-import type { MemberWithStatus, MembershipPlan, Payment } from "@/types/db";
+import { cancelMembershipAction, assignPersonalTrainerAction } from "@/actions/memberships";
+import { calcBmi, daysUntil, formatDate, formatMoney, formatSerial } from "@/lib/members/metrics";
+import type { MemberWithStatus, MembershipPlan, MemberSubscription, Payment } from "@/types/db";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +33,10 @@ export default async function MemberDetailPage({
   if (!memberRow) notFound();
   const member = memberRow as MemberWithStatus;
 
-  const [{ data: plansData }, { data: paymentsData }] = await Promise.all([
+  const [{ data: plansData }, { data: paymentsData }, { data: ptSubData }] = await Promise.all([
     supabase
       .from("membership_plans")
-      .select("id, name, price, duration_days")
+      .select("id, name, price, duration_days, kind")
       .eq("is_active", true)
       .order("price"),
     supabase
@@ -45,12 +45,30 @@ export default async function MemberDetailPage({
       .eq("member_id", id)
       .order("paid_at", { ascending: false })
       .limit(50),
+    // The member's current Personal Trainer subscription, if any (independent of
+    // their gym membership).
+    supabase
+      .from("member_subscriptions")
+      .select("*")
+      .eq("member_id", id)
+      .eq("kind", "personal_trainer")
+      .eq("status", "active")
+      .order("end_date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
-  const plans = (plansData ?? []) as Pick<MembershipPlan, "id" | "name" | "price" | "duration_days">[];
+  const allPlans = (plansData ?? []) as Pick<
+    MembershipPlan,
+    "id" | "name" | "price" | "duration_days" | "kind"
+  >[];
+  const plans = allPlans.filter((p) => p.kind !== "personal_trainer");
+  const trainerPlans = allPlans.filter((p) => p.kind === "personal_trainer");
   const payments = (paymentsData ?? []) as Payment[];
+  const ptSub = (ptSubData ?? null) as MemberSubscription | null;
 
   const bmi = calcBmi(member.height_cm, member.weight_kg);
   const remaining = daysUntil(member.end_date);
+  const ptRemaining = daysUntil(ptSub?.end_date ?? null);
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
@@ -68,8 +86,11 @@ export default async function MemberDetailPage({
           <div className="flex items-center gap-4">
             <MemberPhoto name={member.full_name} photoUrl={member.photo_url} size="lg" />
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-semibold">{member.full_name}</h1>
+                <span className="font-mono text-sm text-muted-foreground">
+                  {formatSerial(member.serial)}
+                </span>
                 {!member.is_active && <Badge>Inactive</Badge>}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -228,6 +249,66 @@ export default async function MemberDetailPage({
               </div>
             </CardContent>
           </Card>
+
+          {(ptSub || trainerPlans.length > 0) && (
+            <Card className="glass">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DumbbellIcon className="size-4 text-muted-foreground" />
+                  Personal Trainer
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {ptSub ? (
+                  <div className="space-y-2 rounded-lg border border-border/60 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{ptSub.plan_name}</span>
+                      <Badge>{ptRemaining !== null && ptRemaining < 0 ? "Expired" : "Active"}</Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {formatDate(ptSub.start_date)} → {formatDate(ptSub.end_date)}
+                    </div>
+                    {ptRemaining !== null && (
+                      <div className="text-sm">
+                        {ptRemaining >= 0
+                          ? `${ptRemaining} day${ptRemaining === 1 ? "" : "s"} remaining`
+                          : `Expired ${Math.abs(ptRemaining)} day${Math.abs(ptRemaining) === 1 ? "" : "s"} ago`}
+                      </div>
+                    )}
+                    <form action={cancelMembershipAction}>
+                      <input type="hidden" name="subscriptionId" value={ptSub.id} />
+                      <input type="hidden" name="memberId" value={id} />
+                      <ConfirmButton
+                        message="Cancel this Personal Trainer plan?"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                      >
+                        Cancel trainer plan
+                      </ConfirmButton>
+                    </form>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No active Personal Trainer plan.</p>
+                )}
+
+                <div className="border-t border-border/40 pt-3">
+                  <p className="mb-2 text-sm font-medium">
+                    {ptSub ? "Renew / change trainer plan" : "Assign a trainer plan"}
+                  </p>
+                  <AssignMembershipForm
+                    memberId={id}
+                    plans={trainerPlans}
+                    action={assignPersonalTrainerAction}
+                    idPrefix="pt"
+                    planLabel="Personal Trainer plan"
+                    submitLabel="Assign trainer plan"
+                    successMessage="Personal Trainer plan assigned"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="glass">
             <CardHeader>

@@ -3,6 +3,9 @@
 
 export type Gender = "male" | "female" | "other";
 export type MembershipState = "active" | "cancelled";
+// Discriminates the gym membership from add-on Personal Trainer plans. Both share
+// the membership_plans / member_subscriptions tables (see migration 0018).
+export type PlanKind = "membership" | "personal_trainer";
 export type PaymentMethod = "cash" | "card" | "upi" | "bank_transfer" | "other";
 export type JoinRequestStatus = "pending" | "approved" | "rejected";
 
@@ -29,6 +32,7 @@ export interface Gym {
 export interface Member {
   id: string;
   gym_id: string;
+  serial: number;
   full_name: string;
   email: string | null;
   phone: string | null;
@@ -62,6 +66,7 @@ export interface MembershipPlan {
   description: string | null;
   price: number;
   duration_days: number;
+  kind: PlanKind;
   is_active: boolean;
   created_at: string;
 }
@@ -75,12 +80,14 @@ export interface MemberSubscription {
   start_date: string;
   end_date: string;
   status: MembershipState;
+  kind: PlanKind;
   created_at: string;
 }
 
 export interface Payment {
   id: string;
   gym_id: string;
+  serial: number;
   member_id: string | null;
   member_name: string | null;
   subscription_id: string | null;
@@ -96,6 +103,7 @@ export interface Payment {
 export interface JoinRequest {
   id: string;
   gym_id: string;
+  serial: number;
   full_name: string;
   email: string | null;
   phone: string | null;
@@ -109,6 +117,9 @@ export interface JoinRequest {
   plan_id: string | null;
   plan_name: string | null;
   plan_price: number | null;
+  pt_plan_id: string | null;
+  pt_plan_name: string | null;
+  pt_plan_price: number | null;
   payment_method: PaymentMethod;
   payment_proof_url: string | null;
   status: JoinRequestStatus;

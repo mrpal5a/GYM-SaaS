@@ -42,15 +42,17 @@ async function compressInto(
 export function JoinForm({
   token,
   plans,
+  trainerPlans = [],
   upiId,
   upiPayeeName,
-  upiQrByPlan,
+  upiQrByCombo,
 }: {
   token: string;
   plans: PlanOption[];
+  trainerPlans?: PlanOption[];
   upiId: string | null;
   upiPayeeName: string;
-  upiQrByPlan: Record<string, string>;
+  upiQrByCombo: Record<string, string>;
 }) {
   const [state, formAction, pending] = useActionState(
     submitJoinRequestAction.bind(null, token),
@@ -59,6 +61,7 @@ export function JoinForm({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [planId, setPlanId] = useState("");
+  const [ptPlanId, setPtPlanId] = useState("");
   const [method, setMethod] = useState<"" | "cash" | "upi">("");
   // Block submit while an image is still being compressed so the small file —
   // not the raw original — is the one that gets sent.
@@ -91,6 +94,9 @@ export function JoinForm({
   }
 
   const selectedPlan = plans.find((p) => p.id === planId) ?? null;
+  const selectedPt = trainerPlans.find((p) => p.id === ptPlanId) ?? null;
+  const total = (selectedPlan?.price ?? 0) + (selectedPt?.price ?? 0);
+  const comboQr = upiQrByCombo[`${planId}|${ptPlanId}`];
 
   return (
     <form action={formAction} className="glass space-y-6 rounded-xl p-5 sm:p-6">
@@ -184,6 +190,84 @@ export function JoinForm({
         </div>
       </fieldset>
 
+      {/* Personal Trainer add-on (optional) */}
+      {trainerPlans.length > 0 && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Add a Personal Trainer (optional)</legend>
+          <p className="text-xs text-muted-foreground">
+            Want one-on-one training alongside your membership? Pick a plan — it&apos;s added to your total.
+          </p>
+          <div className="grid gap-2">
+            <label
+              className={cn(
+                "flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-colors",
+                ptPlanId === ""
+                  ? "border-primary bg-primary/5"
+                  : "border-border/60 hover:bg-foreground/5",
+              )}
+            >
+              <input
+                type="radio"
+                name="pt_plan_id"
+                value=""
+                checked={ptPlanId === ""}
+                onChange={() => setPtPlanId("")}
+                className="size-4 accent-primary"
+              />
+              <div className="min-w-0 flex-1 font-medium">No personal trainer</div>
+            </label>
+            {trainerPlans.map((p) => (
+              <label
+                key={p.id}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-colors",
+                  ptPlanId === p.id
+                    ? "border-primary bg-primary/5"
+                    : "border-border/60 hover:bg-foreground/5",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="pt_plan_id"
+                  value={p.id}
+                  checked={ptPlanId === p.id}
+                  onChange={() => setPtPlanId(p.id)}
+                  className="size-4 accent-primary"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">{p.name}</div>
+                  {p.description && <div className="text-xs text-muted-foreground">{p.description}</div>}
+                </div>
+                <div className="text-right">
+                  <div className="font-semibold">{formatMoney(p.price)}</div>
+                  <div className="text-xs text-muted-foreground">{p.duration_days} days</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      {/* Order summary / total */}
+      {selectedPlan && (
+        <div className="space-y-1.5 rounded-lg border border-border/60 p-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{selectedPlan.name}</span>
+            <span>{formatMoney(selectedPlan.price)}</span>
+          </div>
+          {selectedPt && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Personal Trainer · {selectedPt.name}</span>
+              <span>{formatMoney(selectedPt.price)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-border/60 pt-1.5 font-semibold">
+            <span>Total</span>
+            <span>{formatMoney(total)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Payment method */}
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">
@@ -210,14 +294,14 @@ export function JoinForm({
             ) : (
               <>
                 <p className="text-sm">
-                  Pay <span className="font-semibold">{formatMoney(selectedPlan.price)}</span> to{" "}
+                  Pay <span className="font-semibold">{formatMoney(total)}</span> to{" "}
                   <span className="font-mono">{upiId}</span>
                   {upiPayeeName ? ` (${upiPayeeName})` : ""}.
                 </p>
-                {upiQrByPlan[selectedPlan.id] && (
+                {comboQr && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={upiQrByPlan[selectedPlan.id]}
+                    src={comboQr}
                     alt="UPI payment QR"
                     className="mx-auto size-44 rounded-md bg-white p-2"
                   />

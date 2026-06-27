@@ -93,15 +93,49 @@ export async function createMemberAction(
     }
   }
 
+  // Optionally assign a Personal Trainer plan in the same step (independent of the
+  // gym membership — a member can have both, either, or neither).
+  const ptPlanId = String(formData.get("pt_plan_id") ?? "");
+  let assignedTrainer: string | null = null;
+  if (created && ptPlanId) {
+    const startDate = String(formData.get("pt_start_date") ?? "") || new Date().toISOString().slice(0, 10);
+    const { data: ptSubId, error: ptErr } = await ctx.supabase.rpc("assign_personal_trainer", {
+      p_member_id: created.id,
+      p_plan_id: ptPlanId,
+      p_start_date: startDate,
+    });
+    if (ptErr) {
+      return { ok: false, error: `Member created, but the trainer plan wasn't assigned: ${ptErr.message}` };
+    }
+    const { data: ptPlan } = await ctx.supabase
+      .from("membership_plans")
+      .select("name, price")
+      .eq("id", ptPlanId)
+      .single();
+    assignedTrainer = ptPlan?.name ?? null;
+    if (ptPlan && formData.get("record_pt_payment") === "on") {
+      await ctx.supabase.from("payments").insert({
+        gym_id: ctx.gymId,
+        member_id: created.id,
+        member_name: parsed.data.full_name,
+        subscription_id: ptSubId as string,
+        amount: ptPlan.price,
+        method: "cash",
+        invoice_number: generateInvoiceNumber(),
+        created_by: ctx.userId,
+      });
+    }
+  }
+
   revalidatePath("/members");
   revalidatePath("/dashboard");
   revalidatePath("/payments");
   revalidatePath("/renewals");
 
-  const flash = assignedPlan
-    ? `${parsed.data.full_name} added · ${assignedPlan} plan assigned`
-    : `${parsed.data.full_name} added`;
-  redirect(`/members?flash=${encodeURIComponent(flash)}`);
+  const parts = [`${parsed.data.full_name} added`];
+  if (assignedPlan) parts.push(`${assignedPlan} plan assigned`);
+  if (assignedTrainer) parts.push(`${assignedTrainer} trainer assigned`);
+  redirect(`/members?flash=${encodeURIComponent(parts.join(" · "))}`);
 }
 
 export async function updateMemberAction(

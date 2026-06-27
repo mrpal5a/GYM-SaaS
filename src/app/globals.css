@@ -129,6 +129,105 @@
   }
 }
 
+/* Cross-slide between routes, driven by <PageTransition>. The incoming page
+   slides in while the outgoing page slides out the opposite way. Forward:
+   new enters from the right, old exits to the left. Back: mirrored. */
+:root {
+  --pt-distance: 2.5rem;
+  --pt-duration: 0.36s;
+  --pt-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pt-stage {
+  position: relative;
+  /* Keep the sliding layers from spawning a horizontal scrollbar. */
+  overflow-x: clip;
+}
+
+.pt-layer {
+  width: 100%;
+}
+
+/* The outgoing snapshot floats above and is pulled out of flow, so the incoming
+   page (in normal flow) defines the container's height. */
+.pt-leaving {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+@keyframes pt-in-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(var(--pt-distance), 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pt-out-forward {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(calc(-1 * var(--pt-distance)), 0, 0);
+  }
+}
+@keyframes pt-in-back {
+  from {
+    opacity: 0;
+    transform: translate3d(calc(-1 * var(--pt-distance)), 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pt-out-back {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(var(--pt-distance), 0, 0);
+  }
+}
+
+.pt-entering,
+.pt-leaving {
+  /* Hint the compositor so both layers stay buttery on every device. */
+  will-change: transform, opacity;
+}
+
+.pt-entering[data-dir="forward"] {
+  animation: pt-in-forward var(--pt-duration) var(--pt-ease) both;
+}
+.pt-entering[data-dir="back"] {
+  animation: pt-in-back var(--pt-duration) var(--pt-ease) both;
+}
+.pt-leaving[data-dir="forward"] {
+  animation: pt-out-forward var(--pt-duration) var(--pt-ease) both;
+}
+.pt-leaving[data-dir="back"] {
+  animation: pt-out-back var(--pt-duration) var(--pt-ease) both;
+}
+
+/* Respect users who prefer reduced motion — no slide/fade for them. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-entering,
+  .pt-leaving {
+    animation: none;
+    will-change: auto;
+  }
+  .pt-leaving {
+    display: none;
+  }
+}
+
 @utility glass {
   border: 1px solid rgb(255 255 255 / 0.15);
   background: rgb(255 255 255 / 0.1);

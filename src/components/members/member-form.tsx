@@ -25,16 +25,19 @@ export function MemberForm({
   action,
   member,
   plans = [],
+  trainerPlans = [],
   submitLabel = "Save member",
 }: {
   action: FormAction;
   member?: Member;
   plans?: PlanOption[];
+  trainerPlans?: PlanOption[];
   submitLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const [preview, setPreview] = useState<string | null>(member?.photo_url ?? null);
   const [planId, setPlanId] = useState("");
+  const [ptPlanId, setPtPlanId] = useState("");
   const [compressing, setCompressing] = useState(false);
 
   async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -150,6 +153,51 @@ export function MemberForm({
                 defaultChecked
               />
               Record payment for the plan price
+            </label>
+          )}
+        </div>
+      )}
+
+      {!member && trainerPlans.length > 0 && (
+        <div className="space-y-4 rounded-lg border border-border/60 p-4">
+          <div>
+            <p className="text-sm font-medium">Personal Trainer</p>
+            <p className="text-xs text-muted-foreground">
+              Optional — assign a Personal Trainer plan if this member wants training
+              alongside their membership.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Personal Trainer plan" htmlFor="pt_plan_id">
+              <Select
+                id="pt_plan_id"
+                name="pt_plan_id"
+                value={ptPlanId}
+                onChange={(e) => setPtPlanId(e.target.value)}
+              >
+                <option value="">No trainer</option>
+                {trainerPlans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {formatMoney(p.price)} / {p.duration_days}d
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {ptPlanId && (
+              <Field label="Start date" htmlFor="pt_start_date">
+                <Input id="pt_start_date" name="pt_start_date" type="date" defaultValue={today()} />
+              </Field>
+            )}
+          </div>
+          {ptPlanId && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="record_pt_payment"
+                className="size-4 accent-primary"
+                defaultChecked
+              />
+              Record payment for the trainer plan price
             </label>
           )}
         </div>

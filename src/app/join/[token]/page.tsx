@@ -24,27 +24,35 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
 
   const { data: planRows } = await admin
     .from("membership_plans")
-    .select("id, name, price, duration_days, description")
+    .select("id, name, price, duration_days, description, kind")
     .eq("gym_id", gym.id)
     .eq("is_active", true)
+    .in("kind", ["membership", "personal_trainer"])
     .order("price", { ascending: true });
-  const plans = (planRows ?? []) as PlanOption[];
+  const allPlans = (planRows ?? []) as (PlanOption & { kind: string })[];
+  const plans = allPlans.filter((p) => p.kind !== "personal_trainer");
+  const trainerPlans = allPlans.filter((p) => p.kind === "personal_trainer");
 
-  // Pre-render a scan-to-pay UPI QR per plan (only when the gym has set a UPI ID).
-  let upiQrByPlan: Record<string, string> = {};
+  // Pre-render a scan-to-pay UPI QR for every membership × trainer combination
+  // (including "no trainer"), keyed "<membershipId>|<trainerId or ''>", so the QR
+  // always encodes the exact total. Only when the gym has set a UPI ID.
+  let upiQrByCombo: Record<string, string> = {};
   if (gym.upi_id) {
+    const trainerOptions: (PlanOption | null)[] = [null, ...trainerPlans];
     const entries = await Promise.all(
-      plans.map(
-        async (p) =>
-          [
-            p.id,
+      plans.flatMap((m) =>
+        trainerOptions.map(async (pt) => {
+          const amount = m.price + (pt?.price ?? 0);
+          return [
+            `${m.id}|${pt?.id ?? ""}`,
             await qrDataUrl(
-              buildUpiUri({ vpa: gym.upi_id!, name: gym.upi_payee_name ?? gym.name, amount: p.price }),
+              buildUpiUri({ vpa: gym.upi_id!, name: gym.upi_payee_name ?? gym.name, amount }),
             ),
-          ] as const,
+          ] as const;
+        }),
       ),
     );
-    upiQrByPlan = Object.fromEntries(entries);
+    upiQrByCombo = Object.fromEntries(entries);
   }
 
   return (
@@ -75,9 +83,10 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
         <JoinForm
           token={token}
           plans={plans}
+          trainerPlans={trainerPlans}
           upiId={gym.upi_id}
           upiPayeeName={gym.upi_payee_name ?? gym.name}
-          upiQrByPlan={upiQrByPlan}
+          upiQrByCombo={upiQrByCombo}
         />
       )}
 

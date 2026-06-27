@@ -52,6 +52,54 @@ export async function assignMembershipAction(
 }
 
 /**
+ * Assign a Personal Trainer plan to a member. Mirrors assignMembershipAction but
+ * drives the assign_personal_trainer RPC, so it never disturbs the member's gym
+ * membership. Shares the same form shape (assignMembershipSchema).
+ */
+export async function assignPersonalTrainerAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<ActionResult> {
+  const ctx = await getGymContext();
+  if (!ctx) return { ok: false, error: "Not authorized" };
+
+  const parsed = assignMembershipSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const { member_id, plan_id, start_date, record_payment } = parsed.data;
+
+  const { data: subId, error: rpcErr } = await ctx.supabase.rpc("assign_personal_trainer", {
+    p_member_id: member_id,
+    p_plan_id: plan_id,
+    p_start_date: start_date ?? new Date().toISOString().slice(0, 10),
+  });
+  if (rpcErr) return { ok: false, error: rpcErr.message };
+
+  if (record_payment) {
+    const [{ data: plan }, { data: member }] = await Promise.all([
+      ctx.supabase.from("membership_plans").select("price").eq("id", plan_id).single(),
+      ctx.supabase.from("members").select("full_name").eq("id", member_id).single(),
+    ]);
+    if (plan && member) {
+      await ctx.supabase.from("payments").insert({
+        gym_id: ctx.gymId,
+        member_id,
+        member_name: member.full_name,
+        subscription_id: subId as string,
+        amount: plan.price,
+        method: "cash",
+        invoice_number: generateInvoiceNumber(),
+        created_by: ctx.userId,
+      });
+    }
+  }
+
+  revalidatePath(`/members/${member_id}`);
+  revalidatePath("/members");
+  revalidatePath("/payments");
+  return { ok: true };
+}
+
+/**
  * One-click renewal from the Renewals hub: re-assign the member's current plan
  * starting today and record the plan price as a cash payment. Reuses the
  * assign_membership RPC, which cancels the old subscription and computes the new

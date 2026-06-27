@@ -12,10 +12,15 @@ export default async function NewMemberPage() {
   const supabase = await createClient();
   const { data: plansData } = await supabase
     .from("membership_plans")
-    .select("id, name, price, duration_days")
+    .select("id, name, price, duration_days, kind")
     .eq("is_active", true)
     .order("price");
-  const plans = (plansData ?? []) as Pick<MembershipPlan, "id" | "name" | "price" | "duration_days">[];
+  const allPlans = (plansData ?? []) as Pick<
+    MembershipPlan,
+    "id" | "name" | "price" | "duration_days" | "kind"
+  >[];
+  const plans = allPlans.filter((p) => p.kind !== "personal_trainer");
+  const trainerPlans = allPlans.filter((p) => p.kind === "personal_trainer");
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -30,7 +35,12 @@ export default async function NewMemberPage() {
         <p className="mb-6 text-sm text-muted-foreground">
           Create a new member profile and optionally assign a plan in one step.
         </p>
-        <MemberForm action={createMemberAction} plans={plans} submitLabel="Create member" />
+        <MemberForm
+          action={createMemberAction}
+          plans={plans}
+          trainerPlans={trainerPlans}
+          submitLabel="Create member"
+        />
       </Card>
     </div>
   );

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { XIcon } from "lucide-react";
 import { MemberAvatar } from "@/components/members/member-avatar";
+import { useMounted } from "@/lib/hooks/use-mounted";
 
 /**
  * A member avatar that, when it has a real photo, is clickable to view the full
@@ -21,9 +22,7 @@ export function MemberPhoto({
   size?: "default" | "sm" | "lg";
 }) {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useMounted();
 
   useEffect(() => {
     if (!open) return;
