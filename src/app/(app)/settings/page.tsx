@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GymBrandingForm } from "@/components/settings/gym-branding-form";
 import { GymRulesForm } from "@/components/settings/gym-rules-form";
 import { OnboardingSettings } from "@/components/settings/onboarding-settings";
+import { ChangePasswordForm } from "@/components/settings/change-password-form";
 import { getGymContext } from "@/lib/auth/context";
 import { getGymBranding } from "@/lib/gym/branding";
 import { canManageGym } from "@/lib/auth/roles";
@@ -71,6 +72,15 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle>Change password</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChangePasswordForm />
+        </CardContent>
+      </Card>
     </div>
   );
 }

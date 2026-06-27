@@ -1,33 +1,13 @@
 "use server";
 import { redirect } from "next/navigation";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { signupSchema, loginSchema, inviteSchema, slugify } from "@/lib/validations/auth";
+import { loginSchema, inviteSchema, changePasswordSchema } from "@/lib/validations/auth";
 import { homePathForRole, type Role } from "@/lib/auth/roles";
 import { siteUrl } from "@/lib/site-url";
 
 type ActionResult = { ok: false; error: string } | { ok: true };
-
-export async function signupAction(_prev: unknown, formData: FormData): Promise<ActionResult> {
-  const parsed = signupSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  const { fullName, gymName, email, password } = parsed.data;
-
-  const supabase = await createClient();
-  const { data: signUp, error: signErr } = await supabase.auth.signUp({ email, password });
-  if (signErr || !signUp.user) return { ok: false, error: signErr?.message ?? "Sign up failed" };
-
-  const slug = `${slugify(gymName)}-${signUp.user.id.slice(0, 6)}`;
-  const { error: rpcErr } = await supabase.rpc("create_gym_with_owner", {
-    p_user_id: signUp.user.id, p_email: email, p_full_name: fullName,
-    p_gym_name: gymName, p_slug: slug,
-  });
-  if (rpcErr) return { ok: false, error: rpcErr.message };
-
-  // refresh session so the new JWT carries gym_id + role claims
-  await supabase.auth.refreshSession();
-  redirect("/dashboard");
-}
 
 export async function loginAction(_prev: unknown, formData: FormData): Promise<ActionResult> {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
@@ -73,5 +53,33 @@ export async function inviteStaffAction(_prev: unknown, formData: FormData): Pro
     app_metadata: { gym_id: gymId, invited_role: "staff" },
   });
   if (metaErr) return { ok: false, error: metaErr.message };
+  return { ok: true };
+}
+
+export async function changePasswordAction(_prev: unknown, formData: FormData): Promise<ActionResult> {
+  const parsed = changePasswordSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const { currentPassword, newPassword } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return { ok: false, error: "You are not signed in" };
+
+  // Verify the current password without disturbing the live session: a throwaway
+  // client that neither persists nor writes the verified session to cookies.
+  const verifier = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+  const { error: verifyErr } = await verifier.auth.signInWithPassword({
+    email: user.email,
+    password: currentPassword,
+  });
+  if (verifyErr) return { ok: false, error: "Current password is incorrect" };
+
+  const { error: updErr } = await supabase.auth.updateUser({ password: newPassword });
+  if (updErr) return { ok: false, error: updErr.message };
+
   return { ok: true };
 }

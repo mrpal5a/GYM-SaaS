@@ -1,12 +1,5 @@
 import { z } from "zod";
 
-export const signupSchema = z.object({
-  fullName: z.string().min(1, "Required").max(120),
-  gymName: z.string().min(2, "Gym name too short").max(120),
-  email: z.email(),
-  password: z.string().min(8, "Min 8 characters").max(72),
-});
-
 export const loginSchema = z.object({
   email: z.email(),
   password: z.string().min(1, "Required"),
@@ -16,9 +9,26 @@ export const inviteSchema = z.object({
   email: z.email(),
 });
 
-export type SignupInput = z.infer<typeof signupSchema>;
+// Gym owners change their own password from Settings: verify the current one,
+// then set a new one (confirmed, and different from the current).
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password"),
+    newPassword: z.string().min(8, "Min 8 characters").max(72),
+    confirmPassword: z.string().min(1, "Confirm your new password"),
+  })
+  .refine((d) => d.newPassword === d.confirmPassword, {
+    message: "New passwords do not match",
+    path: ["confirmPassword"],
+  })
+  .refine((d) => d.newPassword !== d.currentPassword, {
+    message: "New password must be different from the current one",
+    path: ["newPassword"],
+  });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type InviteInput = z.infer<typeof inviteSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
 export function slugify(input: string): string {
   return input
