@@ -35,8 +35,11 @@ export function DeletePasswordDialog({
   const passwordId = useId();
 
   // Close on success. (A redirecting action navigates away; an in-place delete
-  // just dismisses the modal once the list has revalidated.)
+  // just dismisses the modal once the list has revalidated.) Reacting to the
+  // async action result is exactly what this effect is for; the one-shot setState
+  // can't cascade, so the set-state-in-effect heuristic is a false positive here.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (state?.ok === true) setOpen(false);
   }, [state]);
 
