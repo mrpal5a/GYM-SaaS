@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PUBLIC = ["/login", "/accept-invite", "/join"];
+const PUBLIC = ["/login", "/accept-invite", "/join", "/forgot-password", "/reset-password", "/auth/confirm"];
 
 export async function proxy(request: NextRequest) {
   const { response, user, supabase } = await updateSession(request);

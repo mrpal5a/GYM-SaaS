@@ -26,7 +26,18 @@ export const changePasswordSchema = z
     path: ["newPassword"],
   });
 
+// Request a reset link (just the email) and set a new password from the link.
+export const forgotPasswordSchema = z.object({
+  email: z.email(),
+});
+
+export const resetPasswordSchema = z.object({
+  password: z.string().min(8, "Min 8 characters").max(72),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type InviteInput = z.infer<typeof inviteSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 

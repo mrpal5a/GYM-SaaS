@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { changePasswordSchema, loginSchema, inviteSchema, slugify } from "./auth";
+import {
+  changePasswordSchema,
+  loginSchema,
+  inviteSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  slugify,
+} from "./auth";
 
 describe("auth validations", () => {
   it("rejects bad email on login", () => {
@@ -10,6 +17,22 @@ describe("auth validations", () => {
   });
   it("slugify produces url-safe slugs", () => {
     expect(slugify("Iron Temple Gym!")).toBe("iron-temple-gym");
+  });
+});
+
+describe("forgotPasswordSchema", () => {
+  it("requires a valid email", () => {
+    expect(forgotPasswordSchema.safeParse({ email: "owner@gym.com" }).success).toBe(true);
+    expect(forgotPasswordSchema.safeParse({ email: "nope" }).success).toBe(false);
+  });
+});
+
+describe("resetPasswordSchema", () => {
+  it("accepts a password of at least 8 characters", () => {
+    expect(resetPasswordSchema.safeParse({ password: "newpass12" }).success).toBe(true);
+  });
+  it("rejects a short password", () => {
+    expect(resetPasswordSchema.safeParse({ password: "short" }).success).toBe(false);
   });
 });
 
