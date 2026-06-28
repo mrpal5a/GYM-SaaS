@@ -34,7 +34,11 @@ export function SubscriptionEditor({ gymId, sub }: { gymId: string; sub: Subscri
         </div>
         <div className="space-y-2">
           <Label htmlFor="periodEnd">Expiry date</Label>
-          <Input id="periodEnd" name="periodEnd" type="date" defaultValue={periodEnd} required />
+          {/* Remount when the saved value changes (after revalidatePath) so this
+              uncontrolled input re-initializes from the fresh default rather than
+              mutating defaultValue in place — Base UI warns on the latter. The prop
+              only changes on save, never mid-edit, so typing is never interrupted. */}
+          <Input key={periodEnd} id="periodEnd" name="periodEnd" type="date" defaultValue={periodEnd} required />
         </div>
       </div>
       {state?.ok === false && <p className="text-sm text-destructive">{state.error}</p>}
