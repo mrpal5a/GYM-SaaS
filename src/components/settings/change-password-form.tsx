@@ -2,7 +2,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { changePasswordAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 
 export function ChangePasswordForm() {
@@ -18,16 +18,16 @@ export function ChangePasswordForm() {
     <form ref={formRef} action={action} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="currentPassword">Current password</Label>
-        <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
+        <PasswordInput id="currentPassword" name="currentPassword" autoComplete="current-password" required />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="newPassword">New password</Label>
-          <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" minLength={8} required />
+          <PasswordInput id="newPassword" name="newPassword" autoComplete="new-password" minLength={8} required />
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirmPassword">Confirm new password</Label>
-          <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required />
+          <PasswordInput id="confirmPassword" name="confirmPassword" autoComplete="new-password" minLength={8} required />
         </div>
       </div>
       {state?.ok === false && <p className="text-sm text-destructive">{state.error}</p>}

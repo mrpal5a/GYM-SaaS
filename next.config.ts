@@ -11,6 +11,11 @@ const supabaseHost = (() => {
 })();
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this project. Without it, a stray lockfile in a
+  // parent directory makes Next infer the wrong root (and warn on every build).
+  turbopack: {
+    root: import.meta.dirname,
+  },
   // @react-pdf/renderer pulls in fontkit + a wasm layout engine that don't survive
   // Next's bundler; load it from node_modules at runtime in the Node server runtime.
   serverExternalPackages: ["@react-pdf/renderer"],

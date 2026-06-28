@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 const PUBLIC = ["/login", "/accept-invite", "/join"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { response, user, supabase } = await updateSession(request);
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC.some((p) => path.startsWith(p));

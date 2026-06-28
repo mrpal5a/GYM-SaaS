@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getGymContext } from "@/lib/auth/context";
+import { verifyCurrentUserPassword } from "@/lib/auth/verify-password";
 import { memberSchema } from "@/lib/validations/member";
 import { generateInvoiceNumber } from "@/lib/payments/invoice";
 
@@ -167,13 +168,27 @@ export async function updateMemberAction(
   redirect(`/members/${memberId}`);
 }
 
-export async function deleteMemberAction(formData: FormData): Promise<void> {
+export async function deleteMemberAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<ActionResult> {
   const ctx = await getGymContext();
-  if (!ctx) return;
+  if (!ctx) return { ok: false, error: "Not authorized" };
   const memberId = String(formData.get("memberId") ?? "");
-  if (!memberId) return;
+  if (!memberId) return { ok: false, error: "Missing member." };
 
-  await ctx.supabase.from("members").delete().eq("id", memberId).eq("gym_id", ctx.gymId);
+  // Require the signed-in user's password before any destructive delete.
+  if (!(await verifyCurrentUserPassword(String(formData.get("password") ?? "")))) {
+    return { ok: false, error: "Incorrect password." };
+  }
+
+  const { error } = await ctx.supabase
+    .from("members")
+    .delete()
+    .eq("id", memberId)
+    .eq("gym_id", ctx.gymId);
+  if (error) return { ok: false, error: error.message };
+
   revalidatePath("/members");
   revalidatePath("/dashboard");
   redirect("/members");

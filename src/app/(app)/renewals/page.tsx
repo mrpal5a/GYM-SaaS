@@ -5,6 +5,7 @@ import { getGymContext } from "@/lib/auth/context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
+import { SearchToolbar } from "@/components/ui/search-toolbar";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { StatusBadge } from "@/components/members/status-badge";
@@ -28,7 +29,12 @@ type RenewalRow = Pick<
   | "membership_status"
 >;
 
-export default async function RenewalsPage() {
+export default async function RenewalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q = "" } = await searchParams;
   const supabase = await createClient();
   const ctx = await getGymContext();
 
@@ -52,12 +58,23 @@ export default async function RenewalsPage() {
   // Soonest-expiring (and most-overdue) first.
   rows.sort((a, b) => (a.end_date ?? "").localeCompare(b.end_date ?? ""));
 
+  // Stats reflect the whole follow-up list; the search only narrows what's shown.
   const expiringCount = rows.filter((r) => r.membership_status === "expiring").length;
   const expiredCount = rows.filter((r) => r.membership_status === "expired").length;
   const potentialRevenue = rows.reduce(
     (sum, r) => sum + (r.plan_id ? planPrice.get(r.plan_id) ?? 0 : 0),
     0,
   );
+
+  const term = q.trim().toLowerCase();
+  const visibleRows = term
+    ? rows.filter(
+        (r) =>
+          r.full_name.toLowerCase().includes(term) ||
+          (r.phone ?? "").toLowerCase().includes(term) ||
+          (r.plan_name ?? "").toLowerCase().includes(term),
+      )
+    : rows;
 
   return (
     <div className="space-y-4">
@@ -80,8 +97,11 @@ export default async function RenewalsPage() {
       </div>
 
       <Card className="glass overflow-hidden p-0">
-        <CardHeader className="p-4">
+        <CardHeader className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Follow-up list</CardTitle>
+          {rows.length > 0 && (
+            <SearchToolbar initialQuery={q} placeholder="Search by name, phone, or plan…" />
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {rows.length === 0 ? (
@@ -90,6 +110,14 @@ export default async function RenewalsPage() {
               <p className="font-medium">You&apos;re all caught up</p>
               <p className="text-sm text-muted-foreground">
                 No memberships are expiring soon or overdue. Nice work!
+              </p>
+            </div>
+          ) : visibleRows.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 p-12 text-center">
+              <RefreshCwIcon className="size-8 text-muted-foreground" />
+              <p className="font-medium">No matching members</p>
+              <p className="text-sm text-muted-foreground">
+                Try a different name, phone number, or plan.
               </p>
             </div>
           ) : (
@@ -105,7 +133,7 @@ export default async function RenewalsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((m) => {
+                  {visibleRows.map((m) => {
                     const left = daysUntil(m.end_date);
                     const waLink = buildWhatsAppLink(
                       m.phone,

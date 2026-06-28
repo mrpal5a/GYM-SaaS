@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getGymContext } from "@/lib/auth/context";
+import { verifyCurrentUserPassword } from "@/lib/auth/verify-password";
 import { planSchema } from "@/lib/validations/plan";
 
 export type ActionResult = { ok: false; error: string } | { ok: true };
@@ -39,16 +40,27 @@ export async function setPlanActiveAction(formData: FormData): Promise<void> {
   revalidatePath("/plans");
 }
 
-export async function deletePlanAction(formData: FormData): Promise<void> {
+export async function deletePlanAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<ActionResult> {
   const ctx = await getGymContext();
-  if (!ctx) return;
+  if (!ctx) return { ok: false, error: "Not authorized" };
   const planId = String(formData.get("planId") ?? "");
-  if (!planId) return;
+  if (!planId) return { ok: false, error: "Missing plan." };
 
-  await ctx.supabase
+  // Require the signed-in user's password before any destructive delete.
+  if (!(await verifyCurrentUserPassword(String(formData.get("password") ?? "")))) {
+    return { ok: false, error: "Incorrect password." };
+  }
+
+  const { error } = await ctx.supabase
     .from("membership_plans")
     .delete()
     .eq("id", planId)
     .eq("gym_id", ctx.gymId);
+  if (error) return { ok: false, error: error.message };
+
   revalidatePath("/plans");
+  return { ok: true };
 }

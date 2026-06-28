@@ -2,7 +2,7 @@ import { TagIcon, DumbbellIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ConfirmButton } from "@/components/ui/confirm-button";
+import { DeletePasswordDialog } from "@/components/ui/delete-password-dialog";
 import { Button } from "@/components/ui/button";
 import { PlanForm } from "@/components/plans/plan-form";
 import { setPlanActiveAction, deletePlanAction } from "@/actions/plans";
@@ -113,16 +113,17 @@ function PlanRow({ plan }: { plan: MembershipPlan }) {
               {plan.is_active ? "Archive" : "Restore"}
             </Button>
           </form>
-          <form action={deletePlanAction}>
-            <input type="hidden" name="planId" value={plan.id} />
-            <ConfirmButton
-              message={`Delete the "${plan.name}" plan? Past memberships keep their snapshot.`}
-              variant="destructive"
-              size="sm"
-            >
-              Delete
-            </ConfirmButton>
-          </form>
+          <DeletePasswordDialog
+            action={deletePlanAction}
+            hiddenFields={{ planId: plan.id }}
+            title={`Delete the "${plan.name}" plan?`}
+            description="Past memberships keep their snapshot. This cannot be undone."
+            trigger={
+              <Button type="button" variant="destructive" size="sm">
+                Delete
+              </Button>
+            }
+          />
         </div>
       </CardContent>
     </Card>

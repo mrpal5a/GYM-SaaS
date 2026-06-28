@@ -1,8 +1,8 @@
 "use server";
 import { redirect } from "next/navigation";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyCurrentUserPassword } from "@/lib/auth/verify-password";
 import { loginSchema, inviteSchema, changePasswordSchema } from "@/lib/validations/auth";
 import { homePathForRole, type Role } from "@/lib/auth/roles";
 import { siteUrl } from "@/lib/site-url";
@@ -61,23 +61,11 @@ export async function changePasswordAction(_prev: unknown, formData: FormData): 
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const { currentPassword, newPassword } = parsed.data;
 
+  if (!(await verifyCurrentUserPassword(currentPassword))) {
+    return { ok: false, error: "Current password is incorrect" };
+  }
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return { ok: false, error: "You are not signed in" };
-
-  // Verify the current password without disturbing the live session: a throwaway
-  // client that neither persists nor writes the verified session to cookies.
-  const verifier = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
-  const { error: verifyErr } = await verifier.auth.signInWithPassword({
-    email: user.email,
-    password: currentPassword,
-  });
-  if (verifyErr) return { ok: false, error: "Current password is incorrect" };
-
   const { error: updErr } = await supabase.auth.updateUser({ password: newPassword });
   if (updErr) return { ok: false, error: updErr.message };
 

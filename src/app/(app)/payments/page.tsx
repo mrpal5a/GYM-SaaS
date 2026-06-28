@@ -3,6 +3,7 @@ import { ReceiptIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordPaymentForm } from "@/components/payments/record-payment-form";
+import { SearchToolbar } from "@/components/ui/search-toolbar";
 import { formatDate, formatMoney, formatSerial } from "@/lib/members/metrics";
 import type { Payment } from "@/types/db";
 
@@ -13,39 +14,68 @@ function methodLabel(method: string): string {
   return method.charAt(0).toUpperCase() + method.slice(1);
 }
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q = "" } = await searchParams;
   const supabase = await createClient();
-  const [{ data: paymentsData }, { data: membersData }] = await Promise.all([
-    supabase.from("payments").select("*").order("paid_at", { ascending: false }).limit(200),
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  let paymentsQuery = supabase
+    .from("payments")
+    .select("*")
+    .order("paid_at", { ascending: false })
+    .limit(200);
+
+  // Search across invoice number, member name, and amount. A numeric term also
+  // matches the exact amount; the % , ( ) strip keeps the PostgREST or() safe.
+  const term = q.replace(/[%,()]/g, "").trim();
+  if (term) {
+    const filters = [`invoice_number.ilike.%${term}%`, `member_name.ilike.%${term}%`];
+    const amount = Number(term);
+    if (Number.isFinite(amount) && term !== "") filters.push(`amount.eq.${amount}`);
+    paymentsQuery = paymentsQuery.or(filters.join(","));
+  }
+
+  // The "collected this month" stat stays accurate regardless of the search.
+  const [{ data: paymentsData }, { data: membersData }, { data: monthData }] = await Promise.all([
+    paymentsQuery,
     supabase.from("members").select("id, full_name").order("full_name"),
+    supabase.from("payments").select("amount").gte("paid_at", monthStart.toISOString()),
   ]);
   const payments = (paymentsData ?? []) as Payment[];
   const members = (membersData ?? []) as { id: string; full_name: string }[];
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthTotal = payments
-    .filter((p) => new Date(p.paid_at) >= monthStart)
-    .reduce((s, p) => s + Number(p.amount), 0);
+  const monthTotal = (monthData ?? []).reduce((s, r) => s + Number(r.amount), 0);
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Payments</h1>
         <p className="text-sm text-muted-foreground">
-          {formatMoney(monthTotal)} collected this month · {payments.length} recent records
+          {formatMoney(monthTotal)} collected this month ·{" "}
+          {term
+            ? `${payments.length} ${payments.length === 1 ? "match" : "matches"}`
+            : `${payments.length} recent records`}
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="space-y-4 lg:col-span-2">
+          <SearchToolbar initialQuery={q} placeholder="Search by invoice #, member name, or amount…" />
           {payments.length === 0 ? (
             <Card className="glass flex flex-col items-center gap-3 p-12 text-center">
               <ReceiptIcon className="size-8 text-muted-foreground" />
               <div>
-                <p className="font-medium">No payments yet</p>
+                <p className="font-medium">{term ? "No matching payments" : "No payments yet"}</p>
                 <p className="text-sm text-muted-foreground">
-                  Record your first payment using the form.
+                  {term
+                    ? "Try a different invoice number, member name, or amount."
+                    : "Record your first payment using the form."}
                 </p>
               </div>
             </Card>

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getGymContext } from "@/lib/auth/context";
 import { canManageGym } from "@/lib/auth/roles";
 import { Card } from "@/components/ui/card";
+import { SearchToolbar } from "@/components/ui/search-toolbar";
 import { MemberPhoto } from "@/components/members/member-photo";
 import { RequestActions } from "@/components/join/request-actions";
 import { DecidedRow } from "@/components/join/decided-row";
@@ -11,29 +12,54 @@ import type { JoinRequest } from "@/types/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function JoinRequestsPage() {
+export default async function JoinRequestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const ctx = await getGymContext();
   if (!ctx || !canManageGym(ctx.role)) redirect("/dashboard");
+
+  const { q = "" } = await searchParams;
 
   const { data: rows } = await ctx.supabase
     .from("join_requests")
     .select("*")
     .order("created_at", { ascending: false });
   const all = (rows ?? []) as JoinRequest[];
-  const pending = all.filter((r) => r.status === "pending");
-  const decided = all.filter((r) => r.status !== "pending").slice(0, 10);
+
+  const term = q.trim().toLowerCase();
+  const matches = (r: JoinRequest) =>
+    !term ||
+    r.full_name.toLowerCase().includes(term) ||
+    (r.phone ?? "").toLowerCase().includes(term) ||
+    (r.email ?? "").toLowerCase().includes(term) ||
+    (r.plan_name ?? "").toLowerCase().includes(term);
+
+  const pending = all.filter((r) => r.status === "pending" && matches(r));
+  // With a search term, scan all decided so older decisions are findable; otherwise
+  // keep the default "recently decided" preview of the latest 10.
+  const decidedAll = all.filter((r) => r.status !== "pending");
+  const decided = term ? decidedAll.filter(matches) : decidedAll.slice(0, 10);
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Join requests</h1>
-        <p className="text-sm text-muted-foreground">
-          New members who registered via your QR code. Review the details and approve to add them.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Join requests</h1>
+          <p className="text-sm text-muted-foreground">
+            New members who registered via your QR code. Review the details and approve to add them.
+          </p>
+        </div>
+        {all.length > 0 && (
+          <SearchToolbar initialQuery={q} placeholder="Search by name, phone, email, or plan…" />
+        )}
       </div>
 
       {pending.length === 0 ? (
-        <Card className="glass p-6 text-sm text-muted-foreground">No pending requests right now.</Card>
+        <Card className="glass p-6 text-sm text-muted-foreground">
+          {term ? "No pending requests match your search." : "No pending requests right now."}
+        </Card>
       ) : (
         <div className="space-y-4">
           {pending.map((r) => (
@@ -44,7 +70,9 @@ export default async function JoinRequestsPage() {
 
       {decided.length > 0 && (
         <div className="space-y-2 pt-4">
-          <h2 className="text-sm font-medium text-muted-foreground">Recently decided</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">
+            {term ? "Decided" : "Recently decided"}
+          </h2>
           <Card className="glass divide-y divide-border/40">
             {decided.map((r) => (
               <DecidedRow key={r.id} r={r} />
