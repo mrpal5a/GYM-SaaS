@@ -5,38 +5,50 @@ import { getGymContext } from "@/lib/auth/context";
 import { canManageGym } from "@/lib/auth/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { RevenueChart, type RevenuePoint } from "@/components/dashboard/revenue-chart";
+import { MonthlyChart } from "@/components/dashboard/monthly-chart";
+import { buildMonthlyStats } from "@/lib/dashboard/monthly-stats";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { StatusBadge } from "@/components/members/status-badge";
+import { PlanExpiryBanner } from "@/components/dashboard/plan-expiry-banner";
+import { getPlanBanner, type PlanBanner } from "@/lib/billing/plan-status";
+import { buildSupportWhatsappLink } from "@/lib/billing/support-link";
 import { formatMoney, formatDate, daysUntil } from "@/lib/members/metrics";
-import type { MemberWithStatus, Payment } from "@/types/db";
+import type { MemberWithStatus, Payment, SubStatus } from "@/types/db";
 
 export const dynamic = "force-dynamic";
-
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5, 1);
-  sixMonthsAgo.setHours(0, 0, 0, 0);
+  // Months shown in the monthly-overview chart (horizontally scrollable).
+  const CHART_MONTHS = 12;
+  const windowStart = new Date();
+  windowStart.setMonth(windowStart.getMonth() - (CHART_MONTHS - 1), 1);
+  windowStart.setHours(0, 0, 0, 0);
 
-  const [{ data: membersData }, { data: paymentsData }] = await Promise.all([
+  const [{ data: membersData }, { data: paymentsData }, { data: subsData }] = await Promise.all([
     supabase
       .from("member_with_status")
-      .select("id, full_name, photo_url, membership_status, end_date, plan_name, created_at"),
+      .select("id, full_name, photo_url, membership_status, end_date, plan_name, created_at, joined_at"),
     supabase
       .from("payments")
       .select("amount, paid_at")
-      .gte("paid_at", sixMonthsAgo.toISOString()),
+      .gte("paid_at", windowStart.toISOString()),
+    // Membership subscriptions ending within the monthly-chart window, for the
+    // "expiring" series. The chart helper ignores anything outside the window.
+    supabase
+      .from("member_subscriptions")
+      .select("end_date")
+      .eq("kind", "membership")
+      .gte("end_date", windowStart.toISOString().slice(0, 10)),
   ]);
 
   const members = (membersData ?? []) as Pick<
     MemberWithStatus,
-    "id" | "full_name" | "photo_url" | "membership_status" | "end_date" | "plan_name" | "created_at"
+    "id" | "full_name" | "photo_url" | "membership_status" | "end_date" | "plan_name" | "created_at" | "joined_at"
   >[];
   const payments = (paymentsData ?? []) as Pick<Payment, "amount" | "paid_at">[];
+  const subscriptions = (subsData ?? []) as { end_date: string | null }[];
 
   // Owners see a banner when join requests are awaiting review (RLS scopes the count).
   const ctx = await getGymContext();
@@ -48,6 +60,36 @@ export default async function DashboardPage() {
       .select("id", { count: "exact", head: true })
       .eq("status", "pending");
     pendingRequests = count ?? 0;
+  }
+
+  // The SaaS plan-expiry warning is the owner's concern (they pay the bill), so
+  // only gym owners see it. RLS scopes both rows to the caller's gym.
+  let planBanner: PlanBanner | null = null;
+  let planMessage = "";
+  let planWhatsappHref: string | null = null;
+  if (ctx?.role === "gym_owner") {
+    const [{ data: subRow }, { data: gymRow }] = await Promise.all([
+      supabase
+        .from("subscriptions")
+        .select("status, current_period_end")
+        .eq("gym_id", ctx.gymId)
+        .maybeSingle(),
+      supabase.from("gyms").select("name").eq("id", ctx.gymId).maybeSingle(),
+    ]);
+    planBanner = getPlanBanner({
+      status: (subRow?.status as SubStatus | undefined) ?? null,
+      currentPeriodEnd: subRow?.current_period_end ?? null,
+    });
+    if (planBanner) {
+      const gymName = gymRow?.name ?? "your gym";
+      planMessage =
+        planBanner.severity === "expired"
+          ? `Your GymFlow plan for ${gymName} has expired. Renew now to avoid interruption to your account.`
+          : `Your GymFlow plan for ${gymName} will expire in ${planBanner.days} ${planBanner.days === 1 ? "day" : "days"}. Please renew to keep access.`;
+      planWhatsappHref = buildSupportWhatsappLink(
+        `Hi, I'd like to renew my GymFlow plan for ${gymName}.`,
+      );
+    }
   }
 
   // Stats
@@ -65,22 +107,19 @@ export default async function DashboardPage() {
     .filter((p) => new Date(p.paid_at) >= monthStart)
     .reduce((s, p) => s + Number(p.amount), 0);
 
-  // Revenue per month for the last 6 months
-  const buckets: RevenuePoint[] = [];
-  const byKey = new Map<string, number>();
-  for (const p of payments) {
-    const d = new Date(p.paid_at);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    byKey.set(key, (byKey.get(key) ?? 0) + Number(p.amount));
-  }
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    buckets.push({ label: MONTH_LABELS[d.getMonth()], value: byKey.get(key) ?? 0 });
-  }
+  // Month-by-month overview for the chart (revenue + new members + expiring + payments).
+  const monthly = buildMonthlyStats({ payments, members, subscriptions }, now, CHART_MONTHS);
 
   return (
     <div className="space-y-4">
+      {planBanner && (
+        <PlanExpiryBanner
+          severity={planBanner.severity}
+          message={planMessage}
+          whatsappHref={planWhatsappHref}
+        />
+      )}
+
       <div>
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="text-sm text-muted-foreground">Your gym at a glance.</p>
@@ -123,12 +162,12 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="glass lg:col-span-2">
+        <Card className="glass self-start lg:col-span-2">
           <CardHeader>
-            <CardTitle>Revenue · last 6 months</CardTitle>
+            <CardTitle>Monthly overview · last 12 months</CardTitle>
           </CardHeader>
           <CardContent>
-            <RevenueChart data={buckets} />
+            <MonthlyChart data={monthly} />
           </CardContent>
         </Card>
 

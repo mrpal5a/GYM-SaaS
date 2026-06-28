@@ -228,6 +228,38 @@
   }
 }
 
+/* Horizontally scrolling ("marquee") text, used by the plan-expiry banner. The
+   track is padded by the full container width so the text starts off the right
+   edge, then translates left by its own width for a continuous loop. */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+.marquee {
+  overflow: hidden;
+}
+.marquee-track {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: marquee 18s linear infinite;
+  will-change: transform;
+}
+
+/* Reduced motion: stop scrolling and show the full message statically. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+    padding-left: 0;
+    white-space: normal;
+    will-change: auto;
+  }
+}
+
 @utility glass {
   border: 1px solid rgb(255 255 255 / 0.15);
   background: rgb(255 255 255 / 0.1);
