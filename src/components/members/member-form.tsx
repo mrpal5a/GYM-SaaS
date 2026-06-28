@@ -82,6 +82,9 @@ export function MemberForm({
         <Field label="Phone" htmlFor="phone">
           <Input id="phone" name="phone" defaultValue={member?.phone ?? ""} />
         </Field>
+        <Field label="Alternate / Emergency mobile number" htmlFor="emergency_phone">
+          <Input id="emergency_phone" name="emergency_phone" defaultValue={member?.emergency_phone ?? ""} />
+        </Field>
         <Field label="Email" htmlFor="email">
           <Input id="email" name="email" type="email" defaultValue={member?.email ?? ""} />
         </Field>

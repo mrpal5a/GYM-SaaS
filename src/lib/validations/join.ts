@@ -24,6 +24,9 @@ const optionalDate = z.preprocess(
 export const joinRequestSchema = z.object({
   full_name: z.string().trim().min(1, "Name is required").max(120),
   phone: z.string().trim().min(5, "Phone number is required").max(20),
+  // Alternate / emergency contact — required on the public form so the gym always
+  // has a second number to reach in an emergency.
+  emergency_phone: z.string().trim().min(5, "Emergency contact number is required").max(20),
   email: optionalEmail,
   gender: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),

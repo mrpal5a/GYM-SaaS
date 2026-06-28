@@ -19,31 +19,34 @@ const C = {
 };
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontSize: 11, fontFamily: "Helvetica", color: C.ink, lineHeight: 1.4 },
+  // Tuned to keep the whole form on a single A4 page: tight line-height and
+  // modest fonts/margins, while staying comfortably legible.
+  page: { padding: 34, fontSize: 10, fontFamily: "Helvetica", color: C.ink, lineHeight: 1.3 },
 
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   brand: { flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 12 },
-  logo: { width: 64, height: 64, borderRadius: 8, objectFit: "cover", marginRight: 14 },
-  gymName: { fontSize: 24, fontFamily: "Helvetica-Bold" },
-  gymAddress: { fontSize: 12, color: C.muted, marginTop: 4, maxWidth: 320 },
-  photo: { width: 84, height: 100, borderRadius: 6, objectFit: "cover", borderWidth: 1, borderColor: C.line },
+  brandText: { flex: 1, alignItems: "center" },
+  logo: { width: 56, height: 56, borderRadius: 8, objectFit: "cover", marginRight: 12 },
+  gymName: { fontSize: 20, fontFamily: "Helvetica-Bold", textAlign: "center" },
+  gymAddress: { fontSize: 10, color: C.muted, marginTop: 5, maxWidth: 320, textAlign: "center" },
+  photo: { width: 72, height: 86, borderRadius: 6, objectFit: "cover", borderWidth: 1, borderColor: C.line },
 
-  divider: { borderBottomWidth: 1, borderBottomColor: C.rule, marginTop: 16, marginBottom: 16 },
-  title: { fontSize: 16, fontFamily: "Helvetica-Bold", textAlign: "center", marginBottom: 20 },
+  divider: { borderBottomWidth: 1, borderBottomColor: C.rule, marginTop: 10, marginBottom: 10 },
+  title: { fontSize: 14, fontFamily: "Helvetica-Bold", textAlign: "center", marginBottom: 12 },
 
-  section: { marginBottom: 20 },
-  sectionHeading: { fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 },
+  section: { marginBottom: 12 },
+  sectionHeading: { fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 },
 
   grid: { flexDirection: "row", flexWrap: "wrap" },
-  cell: { width: "50%", marginBottom: 8, paddingRight: 12 },
+  cell: { width: "50%", marginBottom: 6, paddingRight: 12 },
   cellLabel: { fontSize: 8, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 },
-  cellValue: { fontSize: 11, marginTop: 1 },
+  cellValue: { fontSize: 10, marginTop: 1 },
 
-  ruleRow: { flexDirection: "row", marginBottom: 5 },
-  ruleNum: { width: 18, color: C.muted },
+  ruleRow: { flexDirection: "row", marginBottom: 3 },
+  ruleNum: { width: 16, color: C.muted },
   ruleText: { flex: 1 },
 
-  footer: { marginTop: "auto", borderTopWidth: 0.5, borderTopColor: C.line, paddingTop: 12, textAlign: "center", fontSize: 9, color: C.muted },
+  footer: { marginTop: "auto", borderTopWidth: 0.5, borderTopColor: C.line, paddingTop: 8, textAlign: "center", fontSize: 8, color: C.muted },
 });
 
 function Cell({ label, value }: { label: string; value: string | null }) {
@@ -72,7 +75,7 @@ function JoiningFormDocument({
         <View style={styles.header}>
           <View style={styles.brand}>
             {logo ? <Image src={logo} style={styles.logo} /> : null}
-            <View>
+            <View style={styles.brandText}>
               <Text style={styles.gymName}>{data.gymName}</Text>
               {data.gymAddress ? <Text style={styles.gymAddress}>{data.gymAddress}</Text> : null}
             </View>
@@ -92,6 +95,7 @@ function JoiningFormDocument({
             <Cell label="Gender" value={member.gender} />
             <Cell label="Date of Birth" value={member.dateOfBirth} />
             <Cell label="Phone" value={member.phone} />
+            <Cell label="Emergency Contact" value={member.emergencyPhone} />
             <Cell label="Email" value={member.email} />
             <Cell label="Address" value={member.address} />
             <Cell label="Joined" value={member.joinedAt} />

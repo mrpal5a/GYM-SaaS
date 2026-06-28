@@ -26,6 +26,9 @@ export const memberSchema = z.object({
   full_name: z.string().trim().min(1, "Name is required").max(120),
   email: optionalEmail,
   phone: optionalText,
+  // Alternate / emergency contact — optional for manual entry so the owner is never
+  // blocked adding a walk-in who didn't provide one.
+  emergency_phone: optionalText,
   gender: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.enum(["male", "female", "other"]).optional(),

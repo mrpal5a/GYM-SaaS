@@ -18,6 +18,7 @@ const base: JoiningFormData = {
     gender: "Male",
     dateOfBirth: "01 Jan 1995",
     phone: "+91 98765 43210",
+    emergencyPhone: "+91 91234 56780",
     email: "rahul@example.com",
     address: "5th Cross, Indiranagar",
     height: "175 cm",

@@ -15,6 +15,7 @@ export interface JoiningFormData {
     gender: string | null;
     dateOfBirth: string | null;
     phone: string | null;
+    emergencyPhone: string | null;
     email: string | null;
     address: string | null;
     height: string | null;
@@ -72,6 +73,7 @@ export async function loadJoiningFormData(
       gender: m.gender ? cap(m.gender) : null,
       dateOfBirth: m.date_of_birth ? formatDate(m.date_of_birth) : null,
       phone: m.phone,
+      emergencyPhone: m.emergency_phone,
       email: m.email,
       address: m.address,
       height: m.height_cm ? `${m.height_cm} cm` : null,

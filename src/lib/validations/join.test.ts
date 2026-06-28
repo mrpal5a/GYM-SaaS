@@ -4,6 +4,7 @@ import { joinRequestSchema } from "./join";
 const valid = {
   full_name: "Rahul Sharma",
   phone: "9876543210",
+  emergency_phone: "9123456780",
   plan_id: "550e8400-e29b-41d4-a716-446655440000", // valid RFC-4122 v4 uuid
   payment_method: "cash",
 };
@@ -16,6 +17,14 @@ describe("joinRequestSchema", () => {
   it("requires a name and a phone", () => {
     expect(joinRequestSchema.safeParse({ ...valid, full_name: "" }).success).toBe(false);
     expect(joinRequestSchema.safeParse({ ...valid, phone: "" }).success).toBe(false);
+  });
+
+  it("requires an emergency/alternate phone", () => {
+    const blank = joinRequestSchema.safeParse({ ...valid, emergency_phone: "" });
+    expect(blank.success).toBe(false);
+    const without: Partial<typeof valid> = { ...valid };
+    delete without.emergency_phone;
+    expect(joinRequestSchema.safeParse(without).success).toBe(false);
   });
 
   it("requires a valid plan id (uuid)", () => {

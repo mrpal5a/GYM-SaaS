@@ -122,6 +122,7 @@ function RequestCard({ r }: { r: JoinRequest }) {
       </div>
 
       <div className="grid gap-x-6 text-sm sm:grid-cols-2">
+        <Detail label="Emergency contact" value={r.emergency_phone} />
         <Detail label="Gender" value={r.gender} />
         <Detail label="Date of birth" value={r.date_of_birth ? formatDate(r.date_of_birth) : null} />
         <Detail label="Height" value={r.height_cm != null ? `${r.height_cm} cm` : null} />

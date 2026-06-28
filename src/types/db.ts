@@ -38,6 +38,7 @@ export interface Member {
   full_name: string;
   email: string | null;
   phone: string | null;
+  emergency_phone: string | null;
   gender: Gender | null;
   date_of_birth: string | null;
   height_cm: number | null;
@@ -109,6 +110,7 @@ export interface JoinRequest {
   full_name: string;
   email: string | null;
   phone: string | null;
+  emergency_phone: string | null;
   gender: Gender | null;
   date_of_birth: string | null;
   height_cm: number | null;

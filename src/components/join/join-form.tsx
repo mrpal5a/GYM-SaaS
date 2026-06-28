@@ -124,6 +124,9 @@ export function JoinForm({
         <Field label="Phone" htmlFor="phone" required>
           <Input id="phone" name="phone" inputMode="tel" required />
         </Field>
+        <Field label="Alternate / Emergency mobile number" htmlFor="emergency_phone" required>
+          <Input id="emergency_phone" name="emergency_phone" inputMode="tel" required />
+        </Field>
         <Field label="Email" htmlFor="email">
           <Input id="email" name="email" type="email" />
         </Field>

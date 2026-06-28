@@ -127,6 +127,7 @@ export default async function MemberDetailPage({
               <Detail label="Date of birth" value={formatDate(member.date_of_birth)} />
               <Detail label="Joined" value={formatDate(member.joined_at)} />
               <Detail label="Phone" value={member.phone || "—"} />
+              <Detail label="Emergency contact" value={member.emergency_phone || "—"} />
               <Detail label="Email" value={member.email || "—"} />
               <Detail label="Address" value={member.address || "—"} />
               {member.notes && (
