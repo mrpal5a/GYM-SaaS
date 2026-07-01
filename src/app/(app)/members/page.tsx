@@ -32,7 +32,11 @@ export default async function MembersPage({
       `full_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
     );
   }
-  if (status) query = query.eq("membership_status", status);
+  // `status` may be a single value ("active") or a comma-separated list
+  // ("active,expiring") when linked from a dashboard KPI that groups statuses.
+  const statuses = status.split(",").map((s) => s.trim()).filter(Boolean);
+  if (statuses.length === 1) query = query.eq("membership_status", statuses[0]);
+  else if (statuses.length > 1) query = query.in("membership_status", statuses);
 
   const { data, error } = await query;
   const members = (data ?? []) as MemberWithStatus[];

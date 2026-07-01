@@ -1,10 +1,14 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getGymContext } from "@/lib/auth/context";
+import { currentGymPaused } from "@/lib/billing/pause";
 import { assignMembershipSchema } from "@/lib/validations/payment";
 import { generateInvoiceNumber } from "@/lib/payments/invoice";
+import { scheduleInvoiceEmail } from "@/lib/payments/auto-invoice";
 
 export type ActionResult = { ok: false; error: string } | { ok: true };
+
+const PAUSED_ERROR = "Your gym's service is paused. Please renew to continue.";
 
 export async function assignMembershipAction(
   _prev: unknown,
@@ -12,6 +16,7 @@ export async function assignMembershipAction(
 ): Promise<ActionResult> {
   const ctx = await getGymContext();
   if (!ctx) return { ok: false, error: "Not authorized" };
+  if (await currentGymPaused()) return { ok: false, error: PAUSED_ERROR };
 
   const parsed = assignMembershipSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
@@ -31,16 +36,22 @@ export async function assignMembershipAction(
       ctx.supabase.from("members").select("full_name").eq("id", member_id).single(),
     ]);
     if (plan && member) {
-      await ctx.supabase.from("payments").insert({
-        gym_id: ctx.gymId,
-        member_id,
-        member_name: member.full_name,
-        subscription_id: subId as string,
-        amount: plan.price,
-        method: "cash",
-        invoice_number: generateInvoiceNumber(),
-        created_by: ctx.userId,
-      });
+      const { data: payment } = await ctx.supabase
+        .from("payments")
+        .insert({
+          gym_id: ctx.gymId,
+          member_id,
+          member_name: member.full_name,
+          subscription_id: subId as string,
+          amount: plan.price,
+          method: "cash",
+          invoice_number: generateInvoiceNumber(),
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      // Auto-email the invoice to the member (best-effort, in the background).
+      if (payment) await scheduleInvoiceEmail(payment.id, ctx, "receipt");
     }
   }
 
@@ -62,6 +73,7 @@ export async function assignPersonalTrainerAction(
 ): Promise<ActionResult> {
   const ctx = await getGymContext();
   if (!ctx) return { ok: false, error: "Not authorized" };
+  if (await currentGymPaused()) return { ok: false, error: PAUSED_ERROR };
 
   const parsed = assignMembershipSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
@@ -80,16 +92,22 @@ export async function assignPersonalTrainerAction(
       ctx.supabase.from("members").select("full_name").eq("id", member_id).single(),
     ]);
     if (plan && member) {
-      await ctx.supabase.from("payments").insert({
-        gym_id: ctx.gymId,
-        member_id,
-        member_name: member.full_name,
-        subscription_id: subId as string,
-        amount: plan.price,
-        method: "cash",
-        invoice_number: generateInvoiceNumber(),
-        created_by: ctx.userId,
-      });
+      const { data: payment } = await ctx.supabase
+        .from("payments")
+        .insert({
+          gym_id: ctx.gymId,
+          member_id,
+          member_name: member.full_name,
+          subscription_id: subId as string,
+          amount: plan.price,
+          method: "cash",
+          invoice_number: generateInvoiceNumber(),
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      // Auto-email the invoice to the member (best-effort, in the background).
+      if (payment) await scheduleInvoiceEmail(payment.id, ctx, "receipt");
     }
   }
 
@@ -108,6 +126,7 @@ export async function assignPersonalTrainerAction(
 export async function renewMembershipAction(formData: FormData): Promise<void> {
   const ctx = await getGymContext();
   if (!ctx) return;
+  if (await currentGymPaused()) return;
 
   const memberId = String(formData.get("memberId") ?? "");
   const planId = String(formData.get("planId") ?? "");
@@ -126,16 +145,22 @@ export async function renewMembershipAction(formData: FormData): Promise<void> {
     ctx.supabase.from("members").select("full_name").eq("id", memberId).single(),
   ]);
   if (plan && member) {
-    await ctx.supabase.from("payments").insert({
-      gym_id: ctx.gymId,
-      member_id: memberId,
-      member_name: member.full_name,
-      subscription_id: subId as string,
-      amount: plan.price,
-      method: "cash",
-      invoice_number: generateInvoiceNumber(),
-      created_by: ctx.userId,
-    });
+    const { data: payment } = await ctx.supabase
+      .from("payments")
+      .insert({
+        gym_id: ctx.gymId,
+        member_id: memberId,
+        member_name: member.full_name,
+        subscription_id: subId as string,
+        amount: plan.price,
+        method: "cash",
+        invoice_number: generateInvoiceNumber(),
+        created_by: ctx.userId,
+      })
+      .select("id")
+      .single();
+    // Auto-email the invoice to the member (best-effort, in the background).
+    if (payment) await scheduleInvoiceEmail(payment.id, ctx, "receipt");
   }
 
   revalidatePath("/renewals");
@@ -148,6 +173,7 @@ export async function renewMembershipAction(formData: FormData): Promise<void> {
 export async function cancelMembershipAction(formData: FormData): Promise<void> {
   const ctx = await getGymContext();
   if (!ctx) return;
+  if (await currentGymPaused()) return;
   const subId = String(formData.get("subscriptionId") ?? "");
   const memberId = String(formData.get("memberId") ?? "");
   if (!subId) return;

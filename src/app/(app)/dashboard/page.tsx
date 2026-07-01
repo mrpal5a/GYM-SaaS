@@ -142,22 +142,25 @@ export default async function DashboardPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total members" value={totalMembers} icon={UsersIcon} />
+        <StatCard label="Total members" value={totalMembers} icon={UsersIcon} href="/members" />
         <StatCard
           label="Active memberships"
           value={activeCount}
           hint={totalMembers ? `${Math.round((activeCount / totalMembers) * 100)}% of members` : undefined}
           icon={BadgeCheckIcon}
+          href="/members?status=active,expiring"
         />
         <StatCard
           label="Expiring in 7 days"
           value={expiringSoon.length}
           icon={AlarmClockIcon}
+          href="/members?status=expiring"
         />
         <StatCard
           label="Revenue this month"
           value={formatMoney(monthRevenue)}
           icon={IndianRupeeIcon}
+          href="/payments"
         />
       </div>
 

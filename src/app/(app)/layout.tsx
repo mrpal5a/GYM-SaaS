@@ -2,9 +2,12 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { PageTransition } from "@/components/layout/page-transition";
 import { RequestsPoller } from "@/components/layout/requests-poller";
+import { ServicePausedBanner } from "@/components/billing/service-paused-banner";
 import { getGymBranding } from "@/lib/gym/branding";
 import { getGymContext } from "@/lib/auth/context";
 import { canManageGym } from "@/lib/auth/roles";
+import { currentGymPaused } from "@/lib/billing/pause";
+import { buildSupportWhatsappLink, supportPhone } from "@/lib/billing/support-link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,8 +17,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: claimsData } = await supabase.auth.getClaims();
   if (claimsData?.claims?.user_role === "super_admin") redirect("/admin");
 
-  const [branding, ctx] = await Promise.all([getGymBranding(), getGymContext()]);
+  const [branding, ctx, paused] = await Promise.all([
+    getGymBranding(),
+    getGymContext(),
+    currentGymPaused(),
+  ]);
   const canManage = ctx ? canManageGym(ctx.role) : false;
+
+  // When paused, the owner keeps only the dashboard (with the alert below); the
+  // proxy redirects every other route here. Build the support contacts once.
+  const supportPhoneNumber = supportPhone();
+  const supportWhatsapp = buildSupportWhatsappLink(
+    `Hi, my GymFlow service is paused for ${branding?.name ?? "my gym"} — I'd like to renew and continue.`,
+  );
 
   // Owners get a pending-join-request badge in the sidebar (RLS scopes the count).
   let pendingRequests = 0;
@@ -38,7 +52,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <div className="flex flex-1 gap-4 p-4">
         <Sidebar canManage={canManage} pendingRequests={pendingRequests} />
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 space-y-4">
+          {paused && (
+            <ServicePausedBanner phone={supportPhoneNumber} whatsappHref={supportWhatsapp} />
+          )}
           <PageTransition>{children}</PageTransition>
         </main>
       </div>

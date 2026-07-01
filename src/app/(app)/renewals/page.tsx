@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { AlarmClockIcon, CalendarX2Icon, MessageCircleIcon, RefreshCwIcon, PhoneOffIcon } from "lucide-react";
+import { AlarmClockIcon, CalendarX2Icon, MessageCircleIcon, RefreshCwIcon, PhoneOffIcon, MailCheckIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getGymContext } from "@/lib/auth/context";
+import { canManageGym } from "@/lib/auth/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SendRemindersButton } from "@/components/renewals/send-reminders-button";
 import { buttonVariants } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { SearchToolbar } from "@/components/ui/search-toolbar";
@@ -27,6 +29,7 @@ type RenewalRow = Pick<
   | "plan_name"
   | "end_date"
   | "membership_status"
+  | "subscription_id"
 >;
 
 export default async function RenewalsPage({
@@ -37,6 +40,7 @@ export default async function RenewalsPage({
   const { q = "" } = await searchParams;
   const supabase = await createClient();
   const ctx = await getGymContext();
+  const canManage = ctx ? canManageGym(ctx.role) : false;
 
   const [{ data: gym }, { data: membersData }, { data: plansData }] = await Promise.all([
     ctx
@@ -44,7 +48,7 @@ export default async function RenewalsPage({
       : Promise.resolve({ data: null as { name: string } | null }),
     supabase
       .from("member_with_status")
-      .select("id, full_name, photo_url, phone, plan_id, plan_name, end_date, membership_status")
+      .select("id, full_name, photo_url, phone, plan_id, plan_name, end_date, membership_status, subscription_id")
       .in("membership_status", ["expiring", "expired"]),
     supabase.from("membership_plans").select("id, price"),
   ]);
@@ -57,6 +61,25 @@ export default async function RenewalsPage({
 
   // Soonest-expiring (and most-overdue) first.
   rows.sort((a, b) => (a.end_date ?? "").localeCompare(b.end_date ?? ""));
+
+  // Which of these members have already been emailed a reminder (for their current
+  // subscription), and when the most recent one went out. RLS scopes to this gym.
+  const subIds = rows.map((r) => r.subscription_id).filter((id): id is string => !!id);
+  const remindedAt = new Map<string, string>();
+  if (subIds.length > 0) {
+    const { data: reminderRows } = await supabase
+      .from("renewal_reminders")
+      .select("subscription_id, sent_at")
+      .eq("status", "sent")
+      .in("subscription_id", subIds)
+      .order("sent_at", { ascending: false });
+    for (const r of (reminderRows ?? []) as { subscription_id: string | null; sent_at: string }[]) {
+      // Rows are newest-first, so keep the first (latest) seen per subscription.
+      if (r.subscription_id && !remindedAt.has(r.subscription_id)) {
+        remindedAt.set(r.subscription_id, r.sent_at);
+      }
+    }
+  }
 
   // Stats reflect the whole follow-up list; the search only narrows what's shown.
   const expiringCount = rows.filter((r) => r.membership_status === "expiring").length;
@@ -78,21 +101,35 @@ export default async function RenewalsPage({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Renewals</h1>
-        <p className="text-sm text-muted-foreground">
-          Members to follow up with — send a WhatsApp reminder or renew in one tap.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Renewals</h1>
+          <p className="text-sm text-muted-foreground">
+            Members to follow up with — send a WhatsApp reminder or renew in one tap.
+          </p>
+        </div>
+        {canManage && <SendRemindersButton />}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Expiring this week" value={expiringCount} icon={AlarmClockIcon} />
-        <StatCard label="Already expired" value={expiredCount} icon={CalendarX2Icon} />
+        <StatCard
+          label="Expiring this week"
+          value={expiringCount}
+          icon={AlarmClockIcon}
+          href="/members?status=expiring"
+        />
+        <StatCard
+          label="Already expired"
+          value={expiredCount}
+          icon={CalendarX2Icon}
+          href="/members?status=expired"
+        />
         <StatCard
           label="Revenue at stake"
           value={formatMoney(potentialRevenue)}
           hint="if everyone renews"
           icon={RefreshCwIcon}
+          href="/members?status=expiring,expired"
         />
       </div>
 
@@ -135,6 +172,9 @@ export default async function RenewalsPage({
                 <tbody>
                   {visibleRows.map((m) => {
                     const left = daysUntil(m.end_date);
+                    const remindedOn = m.subscription_id
+                      ? remindedAt.get(m.subscription_id)
+                      : undefined;
                     const waLink = buildWhatsAppLink(
                       m.phone,
                       buildRenewalMessage({
@@ -153,7 +193,18 @@ export default async function RenewalsPage({
                         <td className="px-4 py-3">
                           <Link href={`/members/${m.id}`} className="flex items-center gap-3">
                             <MemberAvatar name={m.full_name} photoUrl={m.photo_url} size="sm" />
-                            <div className="font-medium">{m.full_name}</div>
+                            <div>
+                              <div className="font-medium">{m.full_name}</div>
+                              {remindedOn && (
+                                <div
+                                  className="mt-0.5 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400"
+                                  title={`Renewal reminder emailed on ${formatDate(remindedOn.slice(0, 10))}`}
+                                >
+                                  <MailCheckIcon className="size-3" />
+                                  Reminded {formatDate(remindedOn.slice(0, 10))}
+                                </div>
+                              )}
+                            </div>
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{m.plan_name || "—"}</td>

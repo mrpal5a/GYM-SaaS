@@ -5,6 +5,8 @@ import { getGymContext } from "@/lib/auth/context";
 import { verifyCurrentUserPassword } from "@/lib/auth/verify-password";
 import { memberSchema } from "@/lib/validations/member";
 import { generateInvoiceNumber } from "@/lib/payments/invoice";
+import { scheduleInvoiceEmail } from "@/lib/payments/auto-invoice";
+import { currentGymPaused } from "@/lib/billing/pause";
 
 export type ActionResult = { ok: false; error: string } | { ok: true };
 
@@ -41,6 +43,9 @@ export async function createMemberAction(
 ): Promise<ActionResult> {
   const ctx = await getGymContext();
   if (!ctx) return { ok: false, error: "Not authorized" };
+  if (await currentGymPaused()) {
+    return { ok: false, error: "Your gym's service is paused. Please renew to continue." };
+  }
 
   const parsed = memberSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
@@ -58,6 +63,10 @@ export async function createMemberAction(
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };
+
+  // Payment ids from any plan(s) bought at signup — used to email the welcome + invoice.
+  let membershipPaymentId: string | null = null;
+  let ptPaymentId: string | null = null;
 
   // Optionally assign a plan in the same step (selected on the add-member form).
   const planId = String(formData.get("plan_id") ?? "");
@@ -81,16 +90,21 @@ export async function createMemberAction(
       .single();
     assignedPlan = plan?.name ?? null;
     if (plan && formData.get("record_payment") === "on") {
-      await ctx.supabase.from("payments").insert({
-        gym_id: ctx.gymId,
-        member_id: created.id,
-        member_name: parsed.data.full_name,
-        subscription_id: subId as string,
-        amount: plan.price,
-        method: "cash",
-        invoice_number: generateInvoiceNumber(),
-        created_by: ctx.userId,
-      });
+      const { data: pay } = await ctx.supabase
+        .from("payments")
+        .insert({
+          gym_id: ctx.gymId,
+          member_id: created.id,
+          member_name: parsed.data.full_name,
+          subscription_id: subId as string,
+          amount: plan.price,
+          method: "cash",
+          invoice_number: generateInvoiceNumber(),
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      membershipPaymentId = pay?.id ?? null;
     }
   }
 
@@ -115,17 +129,30 @@ export async function createMemberAction(
       .single();
     assignedTrainer = ptPlan?.name ?? null;
     if (ptPlan && formData.get("record_pt_payment") === "on") {
-      await ctx.supabase.from("payments").insert({
-        gym_id: ctx.gymId,
-        member_id: created.id,
-        member_name: parsed.data.full_name,
-        subscription_id: ptSubId as string,
-        amount: ptPlan.price,
-        method: "cash",
-        invoice_number: generateInvoiceNumber(),
-        created_by: ctx.userId,
-      });
+      const { data: ptPay } = await ctx.supabase
+        .from("payments")
+        .insert({
+          gym_id: ctx.gymId,
+          member_id: created.id,
+          member_name: parsed.data.full_name,
+          subscription_id: ptSubId as string,
+          amount: ptPlan.price,
+          method: "cash",
+          invoice_number: generateInvoiceNumber(),
+          created_by: ctx.userId,
+        })
+        .select("id")
+        .single();
+      ptPaymentId = ptPay?.id ?? null;
     }
+  }
+
+  // Welcome the new member with a congratulations email + their invoice attached
+  // (best-effort, sent in the background). Prefer the membership invoice; fall
+  // back to the personal-trainer one when that's all they bought.
+  const welcomePaymentId = membershipPaymentId ?? ptPaymentId;
+  if (created && welcomePaymentId) {
+    await scheduleInvoiceEmail(welcomePaymentId, ctx, "welcome");
   }
 
   revalidatePath("/members");
@@ -146,6 +173,9 @@ export async function updateMemberAction(
 ): Promise<ActionResult> {
   const ctx = await getGymContext();
   if (!ctx) return { ok: false, error: "Not authorized" };
+  if (await currentGymPaused()) {
+    return { ok: false, error: "Your gym's service is paused. Please renew to continue." };
+  }
 
   const parsed = memberSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };

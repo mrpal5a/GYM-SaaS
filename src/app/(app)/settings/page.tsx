@@ -4,6 +4,7 @@ import { GymBrandingForm } from "@/components/settings/gym-branding-form";
 import { GymRulesForm } from "@/components/settings/gym-rules-form";
 import { OnboardingSettings } from "@/components/settings/onboarding-settings";
 import { ChangePasswordForm } from "@/components/settings/change-password-form";
+import { StaffManager, type StaffRow } from "@/components/settings/staff-manager";
 import { getGymContext } from "@/lib/auth/context";
 import { getGymBranding } from "@/lib/gym/branding";
 import { canManageGym } from "@/lib/auth/roles";
@@ -16,14 +17,22 @@ export default async function SettingsPage() {
   const ctx = await getGymContext();
   if (!ctx || !canManageGym(ctx.role)) redirect("/dashboard");
 
-  const [branding, { data: gymRow }] = await Promise.all([
+  const [branding, { data: gymRow }, { data: peopleRows }] = await Promise.all([
     getGymBranding(),
     ctx.supabase
       .from("gyms")
       .select("join_token, upi_id, upi_payee_name")
       .eq("id", ctx.gymId)
       .single<Pick<Gym, "join_token" | "upi_id" | "upi_payee_name">>(),
+    // Team = owner(s) + staff of this gym (RLS scopes it). Owners sort first.
+    ctx.supabase
+      .from("profiles")
+      .select("id, full_name, email, role")
+      .eq("gym_id", ctx.gymId)
+      .order("role")
+      .order("created_at"),
   ]);
+  const people = (peopleRows ?? []) as StaffRow[];
 
   const joinUrl = gymRow?.join_token ? buildJoinUrl(gymRow.join_token) : null;
   const joinQr = joinUrl ? await qrDataUrl(joinUrl) : null;
@@ -72,6 +81,15 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle>Staff</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StaffManager people={people} selfId={ctx.userId} />
+        </CardContent>
+      </Card>
 
       <Card className="glass">
         <CardHeader>

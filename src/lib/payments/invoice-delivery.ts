@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { renderInvoicePdf } from "@/lib/payments/invoice-pdf";
-import { buildInvoiceShareText, buildWelcomeMessage } from "@/lib/payments/invoice";
+import { buildInvoiceShareText, buildWelcomeMessage, buildWelcomeEmail } from "@/lib/payments/invoice";
 import { buildWhatsAppLink, normalizePhone } from "@/lib/members/whatsapp";
 import { sendInvoiceEmail, type SendResult } from "@/lib/email/resend";
 import { shortenUrl } from "@/lib/url/shorten";
@@ -22,6 +22,7 @@ function shareText(data: InvoiceData, tone: Tone, pdfUrl?: string): string {
       amount: data.amount,
       invoiceNumber: data.invoiceNumber,
       date: data.date,
+      period: data.period,
       pdfUrl,
     });
   }
@@ -31,6 +32,9 @@ function shareText(data: InvoiceData, tone: Tone, pdfUrl?: string): string {
     amount: data.amount,
     invoiceNumber: data.invoiceNumber,
     date: data.date,
+    purpose: data.purpose,
+    planName: data.planName,
+    period: data.period,
     pdfUrl,
   });
 }
@@ -95,18 +99,57 @@ export async function emailInvoice(
   tone: Tone = "receipt",
 ): Promise<SendResult> {
   if (!data.memberEmail) return { ok: false, error: "This member doesn't have an email address." };
-  const subject =
-    tone === "welcome"
-      ? `Welcome to ${data.gymName} · Invoice ${data.invoiceNumber}`
-      : `Invoice ${data.invoiceNumber} · ${data.gymName}`;
+
+  // New members get the long-form welcome (congrats + plan details + gym rules);
+  // everything else gets the concise receipt. Both carry the invoice PDF.
+  if (tone === "welcome") {
+    const welcome = buildWelcomeEmail({
+      memberName: data.memberName,
+      gymName: data.gymName,
+      planName: data.planName,
+      period: data.period,
+      validUntil: data.validUntil,
+      amount: data.amount,
+      invoiceNumber: data.invoiceNumber,
+      date: data.date,
+      rules: data.gymRules,
+    });
+    return sendInvoiceEmail({
+      to: data.memberEmail,
+      gymName: data.gymName,
+      subject: welcome.subject,
+      text: welcome.text,
+      html: welcome.html,
+      pdf,
+      filename: `Invoice-${data.invoiceNumber}.pdf`,
+    });
+  }
+
   return sendInvoiceEmail({
     to: data.memberEmail,
     gymName: data.gymName,
-    subject,
-    text: shareText(data, tone),
+    subject: `Invoice ${data.invoiceNumber} · ${data.gymName}`,
+    text: shareText(data, "receipt"),
     pdf,
     filename: `Invoice-${data.invoiceNumber}.pdf`,
   });
+}
+
+/**
+ * Best-effort: render the invoice and email it to the member, if they have an
+ * address. Never throws — auto-delivery must never undo the payment it follows.
+ * Skips silently (emailSent: false) when there's no email; returns the error when
+ * the member HAS an email but the send failed (e.g. Resend not configured).
+ */
+export async function emailInvoiceIfPossible(
+  data: InvoiceData,
+  tone: Tone = "receipt",
+): Promise<{ emailSent: boolean; emailError: string | null }> {
+  if (!data.memberEmail) return { emailSent: false, emailError: null };
+  const pdf = await renderInvoice(data);
+  if (!pdf) return { emailSent: false, emailError: "Could not generate the invoice PDF." };
+  const res = await emailInvoice(data, pdf, tone);
+  return { emailSent: res.ok, emailError: res.ok ? null : res.error };
 }
 
 /** Outcome of an auto-delivery attempt, surfaced to the owner after approval. */

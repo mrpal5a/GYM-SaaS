@@ -1,7 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PUBLIC = ["/login", "/accept-invite", "/join", "/forgot-password", "/reset-password", "/auth/confirm"];
+// `/api/cron` is guarded by its own CRON_SECRET (not a session), so it must be
+// reachable without a logged-in user.
+const PUBLIC = ["/login", "/accept-invite", "/join", "/forgot-password", "/reset-password", "/auth/confirm", "/api/cron"];
+
+// App routes a paused gym is locked out of — everything except the dashboard,
+// which shows the "service paused" contact banner.
+const PAUSE_GATED = ["/members", "/payments", "/renewals", "/plans", "/settings", "/join-requests", "/invoice"];
 
 export async function proxy(request: NextRequest) {
   const { response, user, supabase } = await updateSession(request);
@@ -15,6 +21,22 @@ export async function proxy(request: NextRequest) {
     const { data } = await supabase.auth.getClaims();
     if (data?.claims?.user_role !== "super_admin") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+  }
+  // Paused gyms: allow only the dashboard. Check just for gated routes (keeps the
+  // extra query off the dashboard, assets, and auth pages).
+  if (user && PAUSE_GATED.some((p) => path.startsWith(p))) {
+    const { data } = await supabase.auth.getClaims();
+    const gymId = data?.claims?.gym_id as string | undefined;
+    if (gymId && data?.claims?.user_role !== "super_admin") {
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paused_at")
+        .eq("gym_id", gymId)
+        .maybeSingle();
+      if (sub?.paused_at) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
     }
   }
   return response;

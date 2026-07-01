@@ -5,7 +5,10 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { ExpiryBadge } from "@/components/admin/expiry-badge";
+import { SendBackupsButton } from "@/components/admin/send-backups-button";
+import { PauseGymButton } from "@/components/admin/pause-gym-button";
 import { getGymOverview } from "@/lib/admin/overview";
+import { getAdminContext } from "@/lib/auth/admin-context";
 import { formatMoney } from "@/lib/members/metrics";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +20,13 @@ const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "muted" | "
 export default async function AdminDashboardPage() {
   const gyms = (await getGymOverview()) ?? [];
 
+  // Which gyms are currently paused (service blocked for their team).
+  const ctx = await getAdminContext();
+  const { data: pausedRows } = ctx
+    ? await ctx.supabase.from("subscriptions").select("gym_id").not("paused_at", "is", null)
+    : { data: null };
+  const paused = new Set(((pausedRows ?? []) as { gym_id: string }[]).map((r) => r.gym_id));
+
   const totalMembers = gyms.reduce((s, g) => s + g.member_count, 0);
   const totalRevenue = gyms.reduce((s, g) => s + g.revenue_total, 0);
 
@@ -27,9 +37,12 @@ export default async function AdminDashboardPage() {
           <h1 className="text-2xl font-semibold">Gyms</h1>
           <p className="text-sm text-muted-foreground">Every gym using GymFlow Pro.</p>
         </div>
-        <Link href="/admin/gyms/new" className={buttonVariants({ variant: "default" })}>
-          Onboard gym
-        </Link>
+        <div className="flex items-center gap-2">
+          <SendBackupsButton />
+          <Link href="/admin/gyms/new" className={buttonVariants({ variant: "default" })}>
+            Onboard gym
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -75,7 +88,10 @@ export default async function AdminDashboardPage() {
                         <span className="text-muted-foreground"> / {formatMoney(g.revenue_total)}</span>
                       </td>
                       <td className="py-2.5 pr-3">
-                        {g.plan ? <Badge tone={STATUS_TONE[g.status ?? "muted"] ?? "muted"}>{g.plan}</Badge> : "—"}
+                        <div className="flex items-center gap-1.5">
+                          {g.plan ? <Badge tone={STATUS_TONE[g.status ?? "muted"] ?? "muted"}>{g.plan}</Badge> : "—"}
+                          {paused.has(g.gym_id) && <Badge tone="danger">Paused</Badge>}
+                        </div>
                       </td>
                       <td className="py-2.5 pr-3"><ExpiryBadge periodEnd={g.current_period_end} /></td>
                       <td className="py-2.5 pr-3">
@@ -86,6 +102,7 @@ export default async function AdminDashboardPage() {
                           <a href={`/admin/gyms/${g.gym_id}/export`} className={buttonVariants({ variant: "outline", size: "sm" })}>
                             <DownloadIcon /> Data
                           </a>
+                          <PauseGymButton gymId={g.gym_id} gymName={g.name} paused={paused.has(g.gym_id)} />
                         </div>
                       </td>
                     </tr>

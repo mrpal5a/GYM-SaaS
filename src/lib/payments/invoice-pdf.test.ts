@@ -16,6 +16,7 @@ const sample: InvoiceData = {
   date: "25 Jun 2026",
   gymName: "Iron Paradise",
   logoUrl: null,
+  gymRules: ["Carry a towel", "Re-rack your weights"],
   memberName: "Rahul Sharma",
   memberPhone: "+91 98765 43210",
   memberEmail: "rahul@example.com",
@@ -23,6 +24,8 @@ const sample: InvoiceData = {
   lineItem: "Gold membership",
   planName: "Gold",
   validUntil: "25 Jul 2026",
+  purpose: "New membership",
+  period: "25 Jun 2026 – 25 Jul 2026",
   note: "Includes joining fee",
   methodLabel: "Cash",
 };

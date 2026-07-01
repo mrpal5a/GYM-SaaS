@@ -144,5 +144,7 @@ export interface Subscription {
   plan: SubPlan;
   status: SubStatus;
   current_period_end: string | null;
+  /** Set when a super-admin has paused the gym's service; null when active. */
+  paused_at: string | null;
   created_at: string;
 }

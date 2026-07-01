@@ -50,7 +50,7 @@ export default async function InvoicePage({
             ) : null}
             <div>
               <h1 className="text-xl font-semibold">{data.gymName}</h1>
-              <p className="text-xs text-muted-foreground">Payment receipt</p>
+              <p className="text-xs text-muted-foreground">Payment receipt · {data.purpose}</p>
             </div>
           </div>
           <div className="text-right">
@@ -81,6 +81,9 @@ export default async function InvoicePage({
               <tr className="border-b border-border/40">
                 <td className="py-3">
                   {data.lineItem}
+                  {data.period && (
+                    <span className="block text-xs text-muted-foreground">{data.period}</span>
+                  )}
                   {data.note && (
                     <span className="block text-xs text-muted-foreground">{data.note}</span>
                   )}

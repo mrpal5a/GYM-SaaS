@@ -3,6 +3,7 @@ import {
   generateInvoiceNumber,
   buildInvoiceShareText,
   buildWelcomeMessage,
+  buildWelcomeEmail,
   methodLabel,
 } from "./invoice";
 
@@ -50,6 +51,20 @@ describe("buildInvoiceShareText", () => {
     const text = buildInvoiceShareText({ ...base, pdfUrl: url });
     expect(text).toContain(`Download your invoice: ${url}`);
   });
+
+  it("includes the purpose, plan, and period when provided", () => {
+    const text = buildInvoiceShareText({
+      ...base,
+      purpose: "Membership renewal",
+      planName: "Monthly",
+      period: "1 Jul 2026 – 1 Aug 2026",
+    });
+    expect(text).toContain("For: Membership renewal (Monthly) · 1 Jul 2026 – 1 Aug 2026");
+  });
+
+  it("omits the detail line when no purpose/plan/period is given", () => {
+    expect(buildInvoiceShareText(base)).not.toContain("For:");
+  });
 });
 
 describe("buildWelcomeMessage", () => {
@@ -89,5 +104,49 @@ describe("buildWelcomeMessage", () => {
     const url = "https://is.gd/abc123";
     const text = buildWelcomeMessage({ ...base, pdfUrl: url });
     expect(text).toContain(`Download your invoice: ${url}`);
+  });
+
+  it("shows the full period when provided, in place of 'valid until'", () => {
+    const text = buildWelcomeMessage({ ...base, period: "25 Jun 2026 – 25 Jul 2026" });
+    expect(text).toContain("is valid 25 Jun 2026 – 25 Jul 2026");
+    expect(text).not.toContain("valid until");
+  });
+});
+
+describe("buildWelcomeEmail", () => {
+  const base = {
+    memberName: "Rahul Sharma",
+    gymName: "Iron Paradise",
+    planName: "Gold",
+    period: "25 Jun 2026 – 25 Jul 2026",
+    validUntil: "25 Jul 2026",
+    amount: "₹1,500",
+    invoiceNumber: "INV-25062026172345",
+    date: "25 Jun 2026",
+    rules: ["Carry a towel", "Re-rack your weights"],
+  };
+
+  it("congratulates the member and includes plan details", () => {
+    const { subject, text } = buildWelcomeEmail(base);
+    expect(subject).toContain("Welcome to Iron Paradise");
+    expect(text).toContain("Hi Rahul,");
+    expect(text).toContain("Congratulations on becoming a member");
+    expect(text).toContain("Gold membership");
+    expect(text).toContain("25 Jun 2026 – 25 Jul 2026");
+    expect(text).toContain("₹1,500");
+    expect(text).toContain("INV-25062026172345");
+  });
+
+  it("lists the gym rules and mentions the attached invoice", () => {
+    const { text, html } = buildWelcomeEmail(base);
+    expect(text).toContain("1. Carry a towel");
+    expect(text).toContain("2. Re-rack your weights");
+    expect(text).toContain("invoice is attached");
+    expect(html).toContain("<li");
+  });
+
+  it("omits the rules section when there are none", () => {
+    const { text } = buildWelcomeEmail({ ...base, rules: [] });
+    expect(text).not.toContain("gym rules");
   });
 });

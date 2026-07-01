@@ -6,8 +6,10 @@ import { Select } from "@/components/ui/select";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
+  { value: "active,expiring", label: "Active memberships" },
   { value: "active", label: "Active" },
   { value: "expiring", label: "Expiring soon" },
+  { value: "expiring,expired", label: "Expiring + expired" },
   { value: "expired", label: "Expired" },
   { value: "none", label: "No plan" },
 ];

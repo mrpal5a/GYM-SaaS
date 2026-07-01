@@ -102,6 +102,7 @@ Under **Authentication**:
    | `NEXT_PUBLIC_SITE_URL` | leave unset for the first deploy | set in Part E |
    | `RESEND_API_KEY` | optional | Part F |
    | `RESEND_FROM_EMAIL` | optional | Part F |
+   | `CRON_SECRET` | required for automation | protects the cron jobs — see [AUTOMATION.md](./AUTOMATION.md) |
 
    > You can skip `NEXT_PUBLIC_SITE_URL` on the very first deploy — the app falls
    > back to Vercel's auto-injected production URL so join/invite links still work.
@@ -135,6 +136,11 @@ configured" message; **WhatsApp share + Print still work**.
    - `RESEND_FROM_EMAIL` = an address on the verified domain (e.g. `invoices@yourgym.com`)
 
 > Until a domain is verified, Resend only delivers to your own account email.
+
+Resend also powers the **automated** mail — invoices, new-member welcomes, weekly
+renewal reminders, and the Monday gym-data backups. Those run on scheduled cron
+jobs guarded by `CRON_SECRET`. Set that env var and see
+**[AUTOMATION.md](./AUTOMATION.md)** for the full cron + email reference.
 
 ✅ *Checkpoint: sending a test invoice email arrives.*
 

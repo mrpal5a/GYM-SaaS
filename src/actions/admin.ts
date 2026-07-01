@@ -1,12 +1,36 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/auth/admin-context";
 import { onboardGymSchema, updateSubscriptionSchema } from "@/lib/validations/admin";
 import { slugify } from "@/lib/validations/auth";
+import { sendWeeklyGymBackups, type BackupSummary } from "@/lib/admin/weekly-backup";
+import { buildGymWelcomeEmail } from "@/lib/admin/gym-welcome-content";
+import { sendPlatformEmail } from "@/lib/email/resend";
+import { siteUrl } from "@/lib/site-url";
+import { formatDate } from "@/lib/members/metrics";
 
 type ActionResult = { ok: false; error: string } | { ok: true };
+
+export type BackupActionResult =
+  | { ok: true; summary: BackupSummary }
+  | { ok: false; error: string };
+
+/**
+ * Super-admin "email backups now": run the same weekly job on demand, across all
+ * gyms. Uses the service-role client (the caller is verified as super_admin).
+ */
+export async function sendWeeklyBackupsAction(): Promise<BackupActionResult> {
+  const ctx = await getAdminContext();
+  if (!ctx) return { ok: false, error: "Not authorized" };
+  // Cap a single click so the action stays snappy even with many gyms; the
+  // Monday cron (uncapped, long maxDuration) handles the full set, and repeated
+  // clicks or the scheduled run cover any remainder (idempotent this week).
+  const summary = await sendWeeklyGymBackups(createAdminClient(), { limit: 25 });
+  return { ok: true, summary };
+}
 
 export async function adminCreateGymAction(_prev: unknown, formData: FormData): Promise<ActionResult> {
   const ctx = await getAdminContext();
@@ -37,8 +61,50 @@ export async function adminCreateGymAction(_prev: unknown, formData: FormData): 
     return { ok: false, error: rpcErr.message };
   }
 
+  // Welcome the new gym owner (best-effort, in the background) — congrats + a tour
+  // of the features + their plan and next renewal. Never blocks onboarding.
+  const welcome = buildGymWelcomeEmail({
+    ownerName: ownerFullName,
+    gymName,
+    plan,
+    renewalDate: formatDate(new Date(periodEnd).toISOString().slice(0, 10)),
+    loginUrl: siteUrl(),
+  });
+  after(async () => {
+    try {
+      await sendPlatformEmail({ to: email, subject: welcome.subject, text: welcome.text, html: welcome.html });
+    } catch {
+      // Best-effort — onboarding already succeeded.
+    }
+  });
+
   revalidatePath("/admin");
   redirect("/admin");
+}
+
+/**
+ * Super-admin pause/resume of a gym's service. Sets or clears `subscriptions.
+ * paused_at`; the `(app)` layout redirects a paused gym's owner + staff to
+ * `/suspended`. Manual by design — the admin decides when to pause after their
+ * own grace-period follow-ups.
+ */
+export async function adminSetGymPausedAction(
+  gymId: string,
+  paused: boolean,
+): Promise<ActionResult> {
+  const ctx = await getAdminContext();
+  if (!ctx) return { ok: false, error: "Not authorized" };
+  if (!gymId) return { ok: false, error: "Missing gym." };
+
+  const { error } = await ctx.supabase
+    .from("subscriptions")
+    .update({ paused_at: paused ? new Date().toISOString() : null })
+    .eq("gym_id", gymId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath(`/admin/gyms/${gymId}`);
+  return { ok: true };
 }
 
 export async function adminUpdateSubscriptionAction(

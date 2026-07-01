@@ -71,7 +71,7 @@ function InvoiceDocument({ data, logo }: { data: InvoiceData; logo: string | nul
             {logo ? <Image src={logo} style={styles.logo} /> : null}
             <View>
               <Text style={styles.gymName}>{data.gymName}</Text>
-              <Text style={styles.receiptLabel}>Payment receipt</Text>
+              <Text style={styles.receiptLabel}>Payment receipt · {data.purpose}</Text>
             </View>
           </View>
           <View style={styles.meta}>
@@ -97,6 +97,7 @@ function InvoiceDocument({ data, logo }: { data: InvoiceData; logo: string | nul
         <View style={styles.row}>
           <View style={styles.descCol}>
             <Text>{data.lineItem}</Text>
+            {data.period ? <Text style={styles.noteLine}>{data.period}</Text> : null}
             {data.note ? <Text style={styles.noteLine}>{data.note}</Text> : null}
           </View>
           <Text style={styles.amtCol}>{amount}</Text>
