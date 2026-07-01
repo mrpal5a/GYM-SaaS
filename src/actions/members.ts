@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getGymContext } from "@/lib/auth/context";
+import { canManageGym } from "@/lib/auth/roles";
 import { verifyCurrentUserPassword } from "@/lib/auth/verify-password";
 import { memberSchema } from "@/lib/validations/member";
 import { generateInvoiceNumber } from "@/lib/payments/invoice";
@@ -204,10 +205,14 @@ export async function deleteMemberAction(
 ): Promise<ActionResult> {
   const ctx = await getGymContext();
   if (!ctx) return { ok: false, error: "Not authorized" };
+  // Owner-only: staff can't delete members (even if they craft the request).
+  if (!canManageGym(ctx.role)) {
+    return { ok: false, error: "Only the gym owner can delete members." };
+  }
   const memberId = String(formData.get("memberId") ?? "");
   if (!memberId) return { ok: false, error: "Missing member." };
 
-  // Require the signed-in user's password before any destructive delete.
+  // Require the signed-in owner's password before any destructive delete.
   if (!(await verifyCurrentUserPassword(String(formData.get("password") ?? "")))) {
     return { ok: false, error: "Incorrect password." };
   }

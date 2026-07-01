@@ -12,6 +12,8 @@ import { DeleteMemberButton } from "@/components/members/delete-member-button";
 import { AssignMembershipForm } from "@/components/memberships/assign-membership-form";
 import { RecordPaymentForm } from "@/components/payments/record-payment-form";
 import { cancelMembershipAction, assignPersonalTrainerAction } from "@/actions/memberships";
+import { getGymContext } from "@/lib/auth/context";
+import { canManageGym } from "@/lib/auth/roles";
 import { calcBmi, daysUntil, formatDate, formatMoney, formatSerial } from "@/lib/members/metrics";
 import type { MemberWithStatus, MembershipPlan, MemberSubscription, Payment } from "@/types/db";
 
@@ -24,6 +26,10 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+
+  // Deleting a member is owner-only (staff can't); gate the button by role.
+  const ctx = await getGymContext();
+  const canManage = ctx ? canManageGym(ctx.role) : false;
 
   const { data: memberRow } = await supabase
     .from("member_with_status")
@@ -110,7 +116,7 @@ export default async function MemberDetailPage({
             <Link href={`/members/${id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}>
               <PencilIcon /> Edit
             </Link>
-            <DeleteMemberButton memberId={id} name={member.full_name} />
+            {canManage && <DeleteMemberButton memberId={id} name={member.full_name} />}
           </div>
         </div>
       </Card>
