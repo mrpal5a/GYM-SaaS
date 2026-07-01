@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyCurrentUserPassword } from "@/lib/auth/verify-password";
+import { sendStaffInviteEmail } from "@/lib/email/smtp";
+import { buildInviteConfirmUrl } from "@/lib/auth/reset-link";
 import { loginSchema, inviteSchema, changePasswordSchema } from "@/lib/validations/auth";
 import { homePathForRole, type Role } from "@/lib/auth/roles";
 import { siteUrl } from "@/lib/site-url";
@@ -41,19 +43,38 @@ export async function inviteStaffAction(_prev: unknown, formData: FormData): Pro
     return { ok: false, error: "Not authorized to invite staff" };
   }
 
+  // Mint the invite token ourselves (Supabase sends no email) and deliver our own
+  // /auth/confirm link via SMTP — the same reliable server-side flow as password
+  // reset. This is what makes /auth/confirm establish the session before the
+  // invitee reaches /accept-invite; the default Supabase invite link doesn't.
   const admin = createAdminClient();
-  const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
-    redirectTo: `${siteUrl()}/accept-invite`,
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "invite",
+    email: parsed.data.email,
   });
-  if (error) return { ok: false, error: error.message };
+  const tokenHash = data?.properties?.hashed_token;
+  if (error || !data?.user || !tokenHash) {
+    return { ok: false, error: error?.message ?? "Could not create the invite." };
+  }
 
   // Carry the invite context in app_metadata (admin-only, NOT user-mutable).
   // accept_staff_invite reads gym_id from app_metadata; user_metadata cannot
   // be trusted because the user can change it via auth.updateUser.
-  const { error: metaErr } = await admin.auth.admin.updateUserById(invited.user.id, {
+  const { error: metaErr } = await admin.auth.admin.updateUserById(data.user.id, {
     app_metadata: { gym_id: gymId, invited_role: "staff" },
   });
   if (metaErr) return { ok: false, error: metaErr.message };
+
+  const { data: gym } = await admin.from("gyms").select("name").eq("id", gymId).maybeSingle();
+  const inviteUrl = buildInviteConfirmUrl(siteUrl(), tokenHash);
+  const sent = await sendStaffInviteEmail({
+    to: parsed.data.email,
+    inviteUrl,
+    gymName: (gym as { name?: string } | null)?.name ?? "the gym",
+  });
+  if (!sent.ok) {
+    return { ok: false, error: `Invite created, but the email couldn't be sent: ${sent.error}` };
+  }
   return { ok: true };
 }
 

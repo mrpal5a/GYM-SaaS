@@ -12,3 +12,18 @@ export function buildResetConfirmUrl(baseUrl: string, tokenHash: string): string
   });
   return `${base}/auth/confirm?${params.toString()}`;
 }
+
+/**
+ * App-owned staff-invite confirmation URL. Same server-side flow as reset: the
+ * emailed link hits /auth/confirm, which verifies the invite token and sets the
+ * session before sending the invitee on to /accept-invite to finish signing up.
+ */
+export function buildInviteConfirmUrl(baseUrl: string, tokenHash: string): string {
+  const base = baseUrl.replace(/\/+$/, "");
+  const params = new URLSearchParams({
+    token_hash: tokenHash,
+    type: "invite",
+    next: "/accept-invite",
+  });
+  return `${base}/auth/confirm?${params.toString()}`;
+}
