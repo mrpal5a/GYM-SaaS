@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 // `/api/cron` is guarded by its own CRON_SECRET (not a session), so it must be
-// reachable without a logged-in user.
-const PUBLIC = ["/login", "/accept-invite", "/join", "/forgot-password", "/reset-password", "/auth/confirm", "/api/cron"];
+// reachable without a logged-in user. `/api/health` is a public status probe.
+const PUBLIC = ["/login", "/accept-invite", "/join", "/forgot-password", "/reset-password", "/auth/confirm", "/api/cron", "/api/health"];
 
 // App routes a paused gym is locked out of — everything except the dashboard,
 // which shows the "service paused" contact banner.
