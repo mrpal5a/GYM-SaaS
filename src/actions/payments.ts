@@ -43,6 +43,7 @@ export async function recordPaymentAction(
       paid_at: paid_at ? new Date(paid_at + "T12:00:00").toISOString() : new Date().toISOString(),
       invoice_number: generateInvoiceNumber(),
       created_by: ctx.userId,
+      source: "manual",
     })
     .select("id")
     .single();

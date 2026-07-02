@@ -8,6 +8,9 @@ export type MembershipState = "active" | "cancelled";
 export type PlanKind = "membership" | "personal_trainer";
 export type PaymentMethod = "cash" | "card" | "upi" | "bank_transfer" | "other";
 export type JoinRequestStatus = "pending" | "approved" | "rejected";
+// How a member/payment row came to exist (attribution "how"). See migration 0030.
+export type MemberSource = "manual" | "join_approval";
+export type PaymentSource = "manual" | "plan" | "join_approval";
 
 // Derived in the member_with_status view, not stored.
 export type MembershipStatus =
@@ -49,11 +52,23 @@ export interface Member {
   joined_at: string;
   is_active: boolean;
   created_by: string | null;
+  source: MemberSource;
+  group_id: string | null;
+  archived_at: string | null;
+  created_at: string;
+}
+
+export interface MemberGroup {
+  id: string;
+  gym_id: string;
+  name: string;
+  created_by: string | null;
   created_at: string;
 }
 
 // member_with_status view row
 export interface MemberWithStatus extends Member {
+  group_name: string | null;
   subscription_id: string | null;
   plan_id: string | null;
   plan_name: string | null;
@@ -100,6 +115,7 @@ export interface Payment {
   invoice_number: string | null;
   paid_at: string;
   created_by: string | null;
+  source: PaymentSource;
   created_at: string;
 }
 

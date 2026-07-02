@@ -14,12 +14,21 @@ const STATUS_OPTIONS = [
   { value: "none", label: "No plan" },
 ];
 
+const SORT_OPTIONS = [
+  { value: "created_desc", label: "Newest first" },
+  { value: "created_asc", label: "Oldest first" },
+  { value: "name_asc", label: "Name: A → Z" },
+  { value: "name_desc", label: "Name: Z → A" },
+];
+
 export function MembersToolbar({
   initialQuery,
   initialStatus,
+  initialSort,
 }: {
   initialQuery: string;
   initialStatus: string;
+  initialSort: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -46,15 +55,15 @@ export function MembersToolbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  function onStatus(value: string) {
+  function onParam(param: string, value: string, clearValue = "") {
     const next = new URLSearchParams(params.toString());
-    if (value) next.set("status", value);
-    else next.delete("status");
+    if (value && value !== clearValue) next.set(param, value);
+    else next.delete(param);
     push(next);
   }
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
       <Input
         placeholder="Search by name, phone, or email…"
         value={query}
@@ -63,10 +72,23 @@ export function MembersToolbar({
       />
       <Select
         defaultValue={initialStatus}
-        onChange={(e) => onStatus(e.target.value)}
+        onChange={(e) => onParam("status", e.target.value)}
         className="sm:max-w-44"
+        aria-label="Filter by status"
       >
         {STATUS_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
+      <Select
+        defaultValue={initialSort}
+        onChange={(e) => onParam("sort", e.target.value, "created_desc")}
+        className="sm:max-w-44"
+        aria-label="Sort members"
+      >
+        {SORT_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>

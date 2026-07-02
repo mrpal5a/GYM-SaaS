@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordPaymentForm } from "@/components/payments/record-payment-form";
 import { MonthFilter } from "@/components/payments/month-filter";
 import { SearchToolbar } from "@/components/ui/search-toolbar";
+import { ParamSelect } from "@/components/ui/param-select";
 import { formatDate, formatMoney, formatSerial } from "@/lib/members/metrics";
+import { loadActors, actorLabel, paymentSourceLabel } from "@/lib/members/attribution";
 import type { Payment } from "@/types/db";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +16,28 @@ function methodLabel(method: string): string {
   if (method === "bank_transfer") return "Bank transfer";
   return method.charAt(0).toUpperCase() + method.slice(1);
 }
+
+// Filter the ledger by how each payment was recorded (matches payments.source).
+const SOURCE_OPTIONS = [
+  { value: "all", label: "All sources" },
+  { value: "manual", label: "Recorded manually" },
+  { value: "plan", label: "Recorded with plan" },
+  { value: "join_approval", label: "On request approval" },
+];
+
+// Sort options → the column + direction applied to the query.
+const SORT_OPTIONS = [
+  { value: "date_desc", label: "Newest first" },
+  { value: "date_asc", label: "Oldest first" },
+  { value: "amount_desc", label: "Amount: high → low" },
+  { value: "amount_asc", label: "Amount: low → high" },
+];
+const SORT_COLUMNS: Record<string, { column: string; ascending: boolean }> = {
+  date_desc: { column: "paid_at", ascending: false },
+  date_asc: { column: "paid_at", ascending: true },
+  amount_desc: { column: "amount", ascending: false },
+  amount_asc: { column: "amount", ascending: true },
+};
 
 // Recent months (current month back 11) plus an "all time" option, for the filter.
 function buildMonthOptions(now: Date): { value: string; label: string }[] {
@@ -30,10 +54,17 @@ function buildMonthOptions(now: Date): { value: string; label: string }[] {
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; month?: string }>;
+  searchParams: Promise<{ q?: string; month?: string; source?: string; sort?: string }>;
 }) {
-  const { q = "", month = "" } = await searchParams;
+  const { q = "", month = "", source = "", sort = "" } = await searchParams;
   const supabase = await createClient();
+
+  // Source filter: null (= all) unless a known non-"all" value was passed.
+  const selectedSource =
+    SOURCE_OPTIONS.some((o) => o.value === source) && source !== "all" ? source : null;
+  // Sort: fall back to newest-first for anything unrecognized.
+  const selectedSort = SORT_COLUMNS[sort] ? sort : "date_desc";
+  const sortConfig = SORT_COLUMNS[selectedSort];
 
   const now = new Date();
   const monthOptions = buildMonthOptions(now);
@@ -57,7 +88,7 @@ export default async function PaymentsPage({
   let paymentsQuery = supabase
     .from("payments")
     .select("*")
-    .order("paid_at", { ascending: false })
+    .order(sortConfig.column, { ascending: sortConfig.ascending })
     .limit(200);
 
   if (monthStart && monthEnd) {
@@ -65,6 +96,7 @@ export default async function PaymentsPage({
       .gte("paid_at", monthStart.toISOString())
       .lt("paid_at", monthEnd.toISOString());
   }
+  if (selectedSource) paymentsQuery = paymentsQuery.eq("source", selectedSource);
 
   // Search across invoice number, member name, and amount. A numeric term also
   // matches the exact amount; the % , ( ) strip keeps the PostgREST or() safe.
@@ -83,6 +115,7 @@ export default async function PaymentsPage({
       .gte("paid_at", monthStart.toISOString())
       .lt("paid_at", monthEnd.toISOString());
   }
+  if (selectedSource) totalQuery = totalQuery.eq("source", selectedSource);
 
   const [{ data: paymentsData }, { data: membersData }, { data: totalData }] = await Promise.all([
     paymentsQuery,
@@ -91,6 +124,9 @@ export default async function PaymentsPage({
   ]);
   const payments = (paymentsData ?? []) as Payment[];
   const members = (membersData ?? []) as { id: string; full_name: string }[];
+
+  // Resolve who recorded each payment (one query) for the "Recorded by" column.
+  const actors = await loadActors(supabase, payments.map((p) => p.created_by));
 
   const revenueTotal = (totalData ?? []).reduce((s, r) => s + Number(r.amount), 0);
   const revenueLabel = hasMonth ? `${monthLabel} revenue` : "All-time revenue";
@@ -110,9 +146,23 @@ export default async function PaymentsPage({
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <SearchToolbar initialQuery={q} placeholder="Search by invoice #, member name, or amount…" />
               <MonthFilter options={monthOptions} initial={selectedMonth} />
+              <ParamSelect
+                param="source"
+                options={SOURCE_OPTIONS}
+                initial={selectedSource ?? "all"}
+                clearValue="all"
+                aria-label="Filter by source"
+              />
+              <ParamSelect
+                param="sort"
+                options={SORT_OPTIONS}
+                initial={selectedSort}
+                clearValue="date_desc"
+                aria-label="Sort payments"
+              />
             </div>
             <Card className="glass shrink-0 px-4 py-2">
               <p className="text-xs text-muted-foreground">{revenueLabel}</p>
@@ -142,6 +192,7 @@ export default async function PaymentsPage({
                       <th className="px-4 py-3 font-medium">Member</th>
                       <th className="px-4 py-3 font-medium">Amount</th>
                       <th className="px-4 py-3 font-medium">Method</th>
+                      <th className="px-4 py-3 font-medium">Recorded by</th>
                       <th className="px-4 py-3 font-medium">Invoice</th>
                     </tr>
                   </thead>
@@ -163,6 +214,10 @@ export default async function PaymentsPage({
                         </td>
                         <td className="px-4 py-3 font-medium">{formatMoney(Number(p.amount))}</td>
                         <td className="px-4 py-3 text-muted-foreground">{methodLabel(p.method)}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          <span className="text-foreground">{actorLabel(actors.get(p.created_by ?? ""))}</span>
+                          <span className="block text-xs">{paymentSourceLabel(p.source)}</span>
+                        </td>
                         <td className="px-4 py-3 font-mono text-xs">
                           <Link href={`/invoice/${p.id}`} className="text-muted-foreground hover:text-foreground hover:underline">
                             {p.invoice_number || "View"}

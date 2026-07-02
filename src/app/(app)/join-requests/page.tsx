@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { getGymContext } from "@/lib/auth/context";
-import { canManageGym } from "@/lib/auth/roles";
+import { canReviewRequests } from "@/lib/auth/roles";
 import { Card } from "@/components/ui/card";
 import { SearchToolbar } from "@/components/ui/search-toolbar";
 import { MemberPhoto } from "@/components/members/member-photo";
 import { RequestActions } from "@/components/join/request-actions";
 import { DecidedRow } from "@/components/join/decided-row";
 import { formatMoney, formatDate, formatSerial } from "@/lib/members/metrics";
+import { loadActors, actorLabel } from "@/lib/members/attribution";
 import { methodLabel } from "@/lib/payments/invoice";
 import type { JoinRequest } from "@/types/db";
 
@@ -18,15 +19,16 @@ export default async function JoinRequestsPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const ctx = await getGymContext();
-  if (!ctx || !canManageGym(ctx.role)) redirect("/dashboard");
+  if (!ctx || !canReviewRequests(ctx.role)) redirect("/dashboard");
 
   const { q = "" } = await searchParams;
 
-  const { data: rows } = await ctx.supabase
-    .from("join_requests")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data: rows }, { data: groupsData }] = await Promise.all([
+    ctx.supabase.from("join_requests").select("*").order("created_at", { ascending: false }),
+    ctx.supabase.from("member_groups").select("id, name").order("name"),
+  ]);
   const all = (rows ?? []) as JoinRequest[];
+  const groups = (groupsData ?? []) as { id: string; name: string }[];
 
   const term = q.trim().toLowerCase();
   const matches = (r: JoinRequest) =>
@@ -41,6 +43,10 @@ export default async function JoinRequestsPage({
   // keep the default "recently decided" preview of the latest 10.
   const decidedAll = all.filter((r) => r.status !== "pending");
   const decided = term ? decidedAll.filter(matches) : decidedAll.slice(0, 10);
+
+  // Resolve the reviewer (owner/staff) for each decided request, so the row can
+  // show who approved or rejected it — the whole point of opening this up to staff.
+  const reviewers = await loadActors(ctx.supabase, decided.map((r) => r.reviewed_by));
 
   return (
     <div className="space-y-4">
@@ -63,7 +69,7 @@ export default async function JoinRequestsPage({
       ) : (
         <div className="space-y-4">
           {pending.map((r) => (
-            <RequestCard key={r.id} r={r} />
+            <RequestCard key={r.id} r={r} groups={groups} />
           ))}
         </div>
       )}
@@ -75,7 +81,11 @@ export default async function JoinRequestsPage({
           </h2>
           <Card className="glass divide-y divide-border/40">
             {decided.map((r) => (
-              <DecidedRow key={r.id} r={r} />
+              <DecidedRow
+                key={r.id}
+                r={r}
+                reviewerLabel={r.reviewed_by ? actorLabel(reviewers.get(r.reviewed_by)) : null}
+              />
             ))}
           </Card>
         </div>
@@ -84,7 +94,7 @@ export default async function JoinRequestsPage({
   );
 }
 
-function RequestCard({ r }: { r: JoinRequest }) {
+function RequestCard({ r, groups }: { r: JoinRequest; groups: { id: string; name: string }[] }) {
   return (
     <Card className="glass space-y-4 p-5">
       <div className="flex items-start gap-4">
@@ -141,7 +151,7 @@ function RequestCard({ r }: { r: JoinRequest }) {
         </div>
       )}
 
-      <RequestActions requestId={r.id} />
+      <RequestActions requestId={r.id} groups={groups} />
     </Card>
   );
 }

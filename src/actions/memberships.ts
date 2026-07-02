@@ -47,6 +47,7 @@ export async function assignMembershipAction(
           method: "cash",
           invoice_number: generateInvoiceNumber(),
           created_by: ctx.userId,
+          source: "plan",
         })
         .select("id")
         .single();
@@ -103,6 +104,7 @@ export async function assignPersonalTrainerAction(
           method: "cash",
           invoice_number: generateInvoiceNumber(),
           created_by: ctx.userId,
+          source: "plan",
         })
         .select("id")
         .single();
@@ -156,6 +158,7 @@ export async function renewMembershipAction(formData: FormData): Promise<void> {
         method: "cash",
         invoice_number: generateInvoiceNumber(),
         created_by: ctx.userId,
+        source: "plan",
       })
       .select("id")
       .single();

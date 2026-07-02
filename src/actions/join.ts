@@ -3,7 +3,8 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getGymContext } from "@/lib/auth/context";
-import { canManageGym } from "@/lib/auth/roles";
+import { canReviewRequests } from "@/lib/auth/roles";
+import { createGroupForMemberAction, addMemberToGroupAction } from "@/actions/groups";
 import { generateInvoiceNumber } from "@/lib/payments/invoice";
 import { loadInvoiceData } from "@/lib/payments/invoice-data";
 import {
@@ -172,21 +173,37 @@ export async function submitJoinRequestAction(
  * the transactional `approve_join_request` RPC (which re-checks gym + owner role +
  * pending status). The invoice number is generated here to match other payments.
  */
-export async function approveJoinRequestAction(requestId: string): Promise<ApproveResult> {
+export async function approveJoinRequestAction(
+  requestId: string,
+  // Optional group to place the new member in: "" = none, "__new__" = start a new
+  // group auto-named after them, or an existing group id. Lets a reviewer keep
+  // friends/family who joined together in one group as they approve each request.
+  groupChoice = "",
+): Promise<ApproveResult> {
   if (!requestId) return { ok: false, error: "Missing request." };
   const ctx = await getGymContext();
-  if (!ctx || !canManageGym(ctx.role)) {
-    return { ok: false, error: "Only the gym owner can approve requests." };
+  if (!ctx || !canReviewRequests(ctx.role)) {
+    return { ok: false, error: "You're not allowed to approve requests." };
   }
 
   // Generate the invoice number here so we can find the payment the RPC creates
   // (invoice_number is unique to the second) and deliver its invoice afterward.
   const invoiceNumber = generateInvoiceNumber();
-  const { error } = await ctx.supabase.rpc("approve_join_request", {
+  // The RPC returns the new member's id, which we use to attach a group below.
+  const { data: newMemberId, error } = await ctx.supabase.rpc("approve_join_request", {
     p_request_id: requestId,
     p_invoice_number: invoiceNumber,
   });
   if (error) return { ok: false, error: error.message };
+
+  // Attach the freshly created member to a group when requested. Reuses the same
+  // tested helpers as the manual flow (they re-check the gym + revalidate). Group
+  // failures are non-fatal — the member is already approved.
+  if (newMemberId && groupChoice) {
+    const memberId = newMemberId as string;
+    if (groupChoice === "__new__") await createGroupForMemberAction(memberId);
+    else await addMemberToGroupAction(groupChoice, memberId);
+  }
 
   revalidatePath("/members");
   revalidatePath("/dashboard");
@@ -252,8 +269,8 @@ export async function rejectJoinRequestAction(
 ): Promise<ReviewResult> {
   if (!requestId) return { ok: false, error: "Missing request." };
   const ctx = await getGymContext();
-  if (!ctx || !canManageGym(ctx.role)) {
-    return { ok: false, error: "Only the gym owner can reject requests." };
+  if (!ctx || !canReviewRequests(ctx.role)) {
+    return { ok: false, error: "You're not allowed to reject requests." };
   }
 
   // RLS (owner-only update policy) is the real boundary; the eqs are defense in depth.

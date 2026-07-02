@@ -9,17 +9,19 @@ export function Topbar({
   gymName,
   logoUrl,
   canManage = false,
+  canReview = false,
   pendingRequests = 0,
 }: {
   gymName?: string;
   logoUrl?: string | null;
   canManage?: boolean;
+  canReview?: boolean;
   pendingRequests?: number;
 }) {
   return (
     <header className="glass sticky top-0 z-10 flex h-14 items-center justify-between gap-2 px-3 sm:px-4 print:hidden">
       <div className="flex min-w-0 items-center gap-2.5">
-        <MobileNav canManage={canManage} pendingRequests={pendingRequests} />
+        <MobileNav canManage={canManage} canReview={canReview} pendingRequests={pendingRequests} />
         {logoUrl ? (
           <Image
             src={logoUrl}
@@ -33,7 +35,7 @@ export function Topbar({
         <span className="truncate font-semibold">{gymName || "GymFlow Pro"}</span>
       </div>
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-        {canManage && <NotificationBell pendingRequests={pendingRequests} />}
+        {canReview && <NotificationBell pendingRequests={pendingRequests} />}
         <ThemeToggle />
         <form action={logoutAction}><Button type="submit" variant="ghost" size="sm">Sign out</Button></form>
       </div>

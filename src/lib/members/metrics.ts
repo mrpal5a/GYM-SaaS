@@ -68,3 +68,17 @@ export function formatDate(date: string | null | undefined): string {
     { day: "numeric", month: "short", year: "numeric" },
   );
 }
+
+// Date + time, for attribution lines ("Added by … · 2 Jul 2026, 4:30 PM"). Takes a
+// full timestamptz string (has a time component), unlike formatDate's date-only use.
+export function formatDateTime(ts: string | null | undefined): string {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}

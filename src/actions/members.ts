@@ -53,17 +53,39 @@ export async function createMemberAction(
 
   const photoUrl = await uploadPhoto(ctx, formData.get("photo") as File | null);
 
+  // Optional group: an existing group id, or the sentinel "__new__" to start a new
+  // group auto-named after this member. Anything else means "no group".
+  const groupChoice = String(formData.get("group_id") ?? "");
+  const existingGroupId = groupChoice && groupChoice !== "__new__" ? groupChoice : null;
+
   const { data: created, error } = await ctx.supabase
     .from("members")
     .insert({
       gym_id: ctx.gymId,
       created_by: ctx.userId,
       photo_url: photoUrl,
+      group_id: existingGroupId,
       ...parsed.data,
     })
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };
+
+  // Start a fresh group seeded from this member when "__new__" was chosen.
+  if (created && groupChoice === "__new__") {
+    const { data: grp } = await ctx.supabase
+      .from("member_groups")
+      .insert({ gym_id: ctx.gymId, name: `Group of ${parsed.data.full_name}`, created_by: ctx.userId })
+      .select("id")
+      .single();
+    if (grp) {
+      await ctx.supabase
+        .from("members")
+        .update({ group_id: grp.id })
+        .eq("id", created.id)
+        .eq("gym_id", ctx.gymId);
+    }
+  }
 
   // Payment ids from any plan(s) bought at signup — used to email the welcome + invoice.
   let membershipPaymentId: string | null = null;
@@ -102,6 +124,7 @@ export async function createMemberAction(
           method: "cash",
           invoice_number: generateInvoiceNumber(),
           created_by: ctx.userId,
+          source: "plan",
         })
         .select("id")
         .single();
@@ -141,6 +164,7 @@ export async function createMemberAction(
           method: "cash",
           invoice_number: generateInvoiceNumber(),
           created_by: ctx.userId,
+          source: "plan",
         })
         .select("id")
         .single();
@@ -160,6 +184,7 @@ export async function createMemberAction(
   revalidatePath("/dashboard");
   revalidatePath("/payments");
   revalidatePath("/renewals");
+  revalidatePath("/groups");
 
   const parts = [`${parsed.data.full_name} added`];
   if (assignedPlan) parts.push(`${assignedPlan} plan assigned`);
@@ -227,6 +252,53 @@ export async function deleteMemberAction(
   revalidatePath("/members");
   revalidatePath("/dashboard");
   redirect("/members");
+}
+
+/**
+ * Archive a member who has left the gym: they drop out of the active Members list,
+ * Renewals, and renewal reminders, and start receiving the monthly win-back email.
+ * Reversible via restoreMemberAction. Allowed for owner + staff (it's operational
+ * and undoable, unlike deletion).
+ */
+export async function archiveMemberAction(memberId: string): Promise<ActionResult> {
+  const ctx = await getGymContext();
+  if (!ctx) return { ok: false, error: "Not authorized" };
+  if (!memberId) return { ok: false, error: "Missing member." };
+
+  const { error } = await ctx.supabase
+    .from("members")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", memberId)
+    .eq("gym_id", ctx.gymId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/members");
+  revalidatePath("/archived");
+  revalidatePath(`/members/${memberId}`);
+  revalidatePath("/renewals");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+/** Restore an archived member back to the active roster. */
+export async function restoreMemberAction(memberId: string): Promise<ActionResult> {
+  const ctx = await getGymContext();
+  if (!ctx) return { ok: false, error: "Not authorized" };
+  if (!memberId) return { ok: false, error: "Missing member." };
+
+  const { error } = await ctx.supabase
+    .from("members")
+    .update({ archived_at: null })
+    .eq("id", memberId)
+    .eq("gym_id", ctx.gymId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/members");
+  revalidatePath("/archived");
+  revalidatePath(`/members/${memberId}`);
+  revalidatePath("/renewals");
+  revalidatePath("/dashboard");
+  return { ok: true };
 }
 
 export async function toggleMemberActiveAction(formData: FormData): Promise<void> {

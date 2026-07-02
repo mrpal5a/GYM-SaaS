@@ -20,9 +20,11 @@ import { cn } from "@/lib/utils";
  */
 export function MobileNav({
   canManage = false,
+  canReview = false,
   pendingRequests = 0,
 }: {
   canManage?: boolean;
+  canReview?: boolean;
   pendingRequests?: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -99,6 +101,7 @@ export function MobileNav({
               </div>
               <NavLinks
                 canManage={canManage}
+                canReview={canReview}
                 pendingRequests={pendingRequests}
                 onNavigate={() => setOpen(false)}
               />

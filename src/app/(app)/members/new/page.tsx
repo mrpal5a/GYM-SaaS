@@ -10,17 +10,21 @@ export const dynamic = "force-dynamic";
 
 export default async function NewMemberPage() {
   const supabase = await createClient();
-  const { data: plansData } = await supabase
-    .from("membership_plans")
-    .select("id, name, price, duration_days, kind")
-    .eq("is_active", true)
-    .order("price");
+  const [{ data: plansData }, { data: groupsData }] = await Promise.all([
+    supabase
+      .from("membership_plans")
+      .select("id, name, price, duration_days, kind")
+      .eq("is_active", true)
+      .order("price"),
+    supabase.from("member_groups").select("id, name").order("name"),
+  ]);
   const allPlans = (plansData ?? []) as Pick<
     MembershipPlan,
     "id" | "name" | "price" | "duration_days" | "kind"
   >[];
   const plans = allPlans.filter((p) => p.kind !== "personal_trainer");
   const trainerPlans = allPlans.filter((p) => p.kind === "personal_trainer");
+  const groups = (groupsData ?? []) as { id: string; name: string }[];
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -39,6 +43,7 @@ export default async function NewMemberPage() {
           action={createMemberAction}
           plans={plans}
           trainerPlans={trainerPlans}
+          groups={groups}
           submitLabel="Create member"
         />
       </Card>

@@ -49,7 +49,9 @@ export default async function RenewalsPage({
     supabase
       .from("member_with_status")
       .select("id, full_name, photo_url, phone, plan_id, plan_name, end_date, membership_status, subscription_id")
-      .in("membership_status", ["expiring", "expired"]),
+      .in("membership_status", ["expiring", "expired"])
+      // Members who left the gym are archived — don't clutter the follow-up list.
+      .is("archived_at", null),
     supabase.from("membership_plans").select("id, price"),
   ]);
 

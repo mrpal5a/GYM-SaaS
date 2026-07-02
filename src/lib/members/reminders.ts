@@ -70,6 +70,7 @@ export async function sendRenewalReminders(
     .from("member_with_status")
     .select("id, gym_id, full_name, email, subscription_id, plan_name, end_date")
     .eq("is_active", true)
+    .is("archived_at", null)
     .not("email", "is", null)
     .not("subscription_id", "is", null)
     .gte("end_date", windowStart)

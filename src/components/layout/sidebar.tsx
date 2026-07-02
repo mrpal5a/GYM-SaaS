@@ -2,9 +2,11 @@ import { NavLinks } from "@/components/layout/nav-links";
 
 export function Sidebar({
   canManage = false,
+  canReview = false,
   pendingRequests = 0,
 }: {
   canManage?: boolean;
+  canReview?: boolean;
   pendingRequests?: number;
 }) {
   return (
@@ -19,7 +21,7 @@ export function Sidebar({
         "md:sticky md:top-[4.5rem] md:self-start md:h-[calc(100dvh-5.5rem)] print:hidden"
       }
     >
-      <NavLinks canManage={canManage} pendingRequests={pendingRequests} />
+      <NavLinks canManage={canManage} canReview={canReview} pendingRequests={pendingRequests} />
     </aside>
   );
 }

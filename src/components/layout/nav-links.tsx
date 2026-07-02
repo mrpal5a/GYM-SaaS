@@ -4,11 +4,13 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboardIcon,
   UsersIcon,
+  UsersRoundIcon,
   TagIcon,
   ReceiptIcon,
   RefreshCwIcon,
   SettingsIcon,
   UserPlusIcon,
+  ArchiveIcon,
   Loader2Icon,
   type LucideIcon,
 } from "lucide-react";
@@ -32,7 +34,9 @@ type NavItem = { href: string; label: string; icon: LucideIcon; badge?: number }
 const baseItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
   { href: "/members", label: "Members", icon: UsersIcon },
+  { href: "/groups", label: "Groups", icon: UsersRoundIcon },
   { href: "/renewals", label: "Renewals", icon: RefreshCwIcon },
+  { href: "/archived", label: "Archived", icon: ArchiveIcon },
   { href: "/plans", label: "Plans", icon: TagIcon },
   { href: "/payments", label: "Payments", icon: ReceiptIcon },
 ];
@@ -43,21 +47,24 @@ const baseItems: NavItem[] = [
  */
 export function NavLinks({
   canManage = false,
+  canReview = false,
   pendingRequests = 0,
   onNavigate,
 }: {
   canManage?: boolean;
+  canReview?: boolean;
   pendingRequests?: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const navItems: NavItem[] = canManage
-    ? [
-        ...baseItems,
-        { href: "/join-requests", label: "Requests", icon: UserPlusIcon, badge: pendingRequests },
-        { href: "/settings", label: "Settings", icon: SettingsIcon },
-      ]
-    : baseItems;
+  // Requests are open to staff (canReview); Settings stays owner-only (canManage).
+  const navItems: NavItem[] = [
+    ...baseItems,
+    ...(canReview
+      ? [{ href: "/join-requests", label: "Requests", icon: UserPlusIcon, badge: pendingRequests }]
+      : []),
+    ...(canManage ? [{ href: "/settings", label: "Settings", icon: SettingsIcon }] : []),
+  ];
 
   return (
     <nav className="space-y-1">

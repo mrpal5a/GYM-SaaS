@@ -26,12 +26,14 @@ export function MemberForm({
   member,
   plans = [],
   trainerPlans = [],
+  groups = [],
   submitLabel = "Save member",
 }: {
   action: FormAction;
   member?: Member;
   plans?: PlanOption[];
   trainerPlans?: PlanOption[];
+  groups?: { id: string; name: string }[];
   submitLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
@@ -116,6 +118,24 @@ export function MemberForm({
       <Field label="Notes" htmlFor="notes">
         <Textarea id="notes" name="notes" rows={3} defaultValue={member?.notes ?? ""} />
       </Field>
+
+      {!member && (
+        <Field label="Group (optional)" htmlFor="group_id">
+          <Select id="group_id" name="group_id" defaultValue="">
+            <option value="">No group</option>
+            <option value="__new__">＋ Start a new group (named after this member)</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Link friends or family who joined together — you&apos;ll see everyone in the group
+            from each member&apos;s page.
+          </p>
+        </Field>
+      )}
 
       {!member && plans.length > 0 && (
         <div className="space-y-4 rounded-lg border border-border/60 p-4">

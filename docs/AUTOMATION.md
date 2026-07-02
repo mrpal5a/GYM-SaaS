@@ -14,8 +14,8 @@ Vercel + Supabase.
 | **Resend account + verified domain** | All automated mail goes out via Resend. Until a domain is verified, Resend **only delivers to your own Resend account email** — real members/owners won't receive anything. |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | The sending key and the "from" address (must be on the verified domain). |
 | `CRON_SECRET` | Guards the cron endpoints (below). A long random string. |
-| Migrations `0025`, `0026` applied | `renewal_reminders` and `gym_backup_runs` back the idempotency of the two cron jobs. |
-| **Vercel Hobby is enough** | This app defines **2** cron jobs (daily reminders + weekly backup), which fits the Hobby limit of 2. |
+| Migrations `0025`, `0026`, `0032` applied | `renewal_reminders`, `gym_backup_runs`, and `winback_emails` back the idempotency of the scheduled jobs. |
+| **Vercel Hobby is enough** | The app defines **one** cron job — a single daily dispatcher that runs the daily/weekly/monthly work itself. Hobby allows up to 100 cron jobs but runs each **at most once per day**, so one daily cron sidesteps that limit entirely (no Pro needed). |
 
 > Set `RESEND_FROM_EMAIL` to something like `no-reply@yourgym.com` on the verified
 > domain. Member-facing invoice/welcome mail is sent "from" the gym's name;
@@ -31,8 +31,9 @@ Vercel + Supabase.
 | **New gym onboarded** (admin panel) | Platform **welcome** to the owner: congrats + feature tour + plan & next-renewal date | `actions/admin.ts` → `lib/admin/gym-welcome-content.ts` + `sendPlatformEmail` |
 | **Any payment recorded** (record payment, assign plan, renew) | Invoice receipt + PDF | `actions/payments.ts`, `actions/memberships.ts` → `lib/payments/auto-invoice.ts` |
 | **New member added** (add-member form, or join-request approval) | Long-form **welcome**: congrats + plan details + gym rules + invoice PDF | `actions/members.ts`, `actions/join.ts` → `lib/payments/invoice-delivery.ts` (`buildWelcomeEmail`) |
-| **Membership expiring/expired** | **Renewal reminders** at 7 / 3 / 1 days before and 1 day after | daily cron → `lib/members/reminders.ts` |
-| **Every Monday** | **Full gym data backup** as an Excel file to the owner | weekly cron → `lib/admin/weekly-backup.ts` |
+| **Membership expiring/expired** | **Renewal reminders** at 7 / 3 / 1 days before and 1 day after | daily dispatcher → `lib/members/reminders.ts` |
+| **Every Monday** | **Full gym data backup** as an Excel file to the owner | daily dispatcher (Mondays) → `lib/admin/weekly-backup.ts` |
+| **1st of each month** | **Win-back email** to archived (left-the-gym) members, for up to 6 months, with a rejoin link | daily dispatcher (1st) → `lib/members/winback.ts` |
 
 Owner-facing manual triggers (same engines, run on demand):
 - **Renewals page → "Email reminders"** (owners/managers).
@@ -100,17 +101,22 @@ Files: `actions/auth.ts` (`inviteStaffAction`, `removeStaffAction`),
 
 Defined in [`vercel.json`](../vercel.json). **Vercel runs cron schedules in UTC.**
 
-| Path | Schedule (UTC) | Purpose | Idempotency |
-|------|----------------|---------|-------------|
-| `/api/cron/renewal-reminders` | `0 4 * * *` (daily 04:00) | Email renewal reminders | `renewal_reminders` — one row per (subscription, offset); a reminder is sent once |
-| `/api/cron/weekly-gym-backup` | `0 5 * * 1` (Mon 05:00) | Email each owner their data backup | `gym_backup_runs` — one row per (gym, week); a gym is backed up once per week |
+A **single daily cron** hits one dispatcher, which decides what to run each day
+(all comparisons in UTC). This keeps us to one cron job — well within Hobby, where
+each cron runs **at most once per day**.
 
-Both endpoints accept `GET` or `POST`.
+| Path | Schedule (UTC) | Runs | Idempotency |
+|------|----------------|------|-------------|
+| `/api/cron/daily` | `0 4 * * *` (daily 04:00) | **Every day:** renewal reminders. **Mondays:** gym backups. **1st of month:** win-back emails. | `renewal_reminders` (subscription, offset) · `gym_backup_runs` (gym, week) · `winback_emails` (member, month) |
 
-> **On Vercel Pro**, add a safety-net second backup run (e.g. `0 8 * * 1`) — the
-> job is idempotent, so it's a no-op when everything's done and only retries
-> failures. It's left out here to stay within Hobby's 2-cron limit. Until then,
-> the **"Email backups now"** button is the manual retry for any gym that failed.
+The endpoint accepts `GET` or `POST`. The per-job routes (`/api/cron/renewal-reminders`,
+`/api/cron/weekly-gym-backup`, `/api/cron/winback-archived`) still exist for manual
+one-off runs, but aren't scheduled — the daily dispatcher drives everything.
+
+> Hobby runs each cron at most once per day with ±59-min timing precision — fine
+> for these jobs. Every underlying job is idempotent, so the daily dispatcher is
+> safe to re-run; the **"Email backups now"** / **"Send win-back emails"** buttons
+> are the manual retries for anything that failed.
 
 ### Authentication
 
@@ -121,9 +127,10 @@ Each cron endpoint requires `CRON_SECRET`:
 
   ```bash
   curl -H "Authorization: Bearer $CRON_SECRET" \
-    https://app.yourgym.com/api/cron/renewal-reminders
+    https://app.yourgym.com/api/cron/daily
 
-  curl "https://app.yourgym.com/api/cron/weekly-gym-backup?secret=$CRON_SECRET"
+  # Per-job routes still work for manual one-off runs:
+  curl "https://app.yourgym.com/api/cron/winback-archived?secret=$CRON_SECRET"
   ```
 
 Behavior:
@@ -171,11 +178,12 @@ Not needed at the current horizon — noted so it's captured for when you get th
 # Dev server with local env
 npm run dev
 
-# Trigger a job (CRON_SECRET must be set in .env.local)
+# Trigger the daily dispatcher (CRON_SECRET must be set in .env.local)
 curl -H "Authorization: Bearer $CRON_SECRET" \
-  http://localhost:3000/api/cron/renewal-reminders
+  http://localhost:3000/api/cron/daily
+# …or a single job directly:
 curl -H "Authorization: Bearer $CRON_SECRET" \
-  http://localhost:3000/api/cron/weekly-gym-backup
+  http://localhost:3000/api/cron/winback-archived
 ```
 
 With an unverified Resend domain, only your Resend account email receives mail —
@@ -192,5 +200,5 @@ point a test member's / owner's email at it to see a real send end-to-end.
 | Summary shows all `failed` with a "verify a domain" error | Resend domain not verified — mail only reaches your account email. |
 | Backup summary shows `"…gym_backup_runs…" not found` | Migration `0026` not applied. |
 | Reminders never send | Migration `0025` not applied, or no members hit the 7/3/1/-1 day offsets. |
-| Cron not firing on Vercel | Confirm the 2 jobs appear under Project → Cron Jobs. Hobby allows **2** cron jobs — adding a 3rd (e.g. a backup safety-net) needs Pro. |
-| A gym's backup failed and wasn't retried | With a single weekly run there's no auto safety-net — click **"Email backups now"** to retry pending gyms this week (idempotent), or add the Pro safety-net cron. |
+| Cron not firing on Vercel | Confirm the single `/api/cron/daily` job appears under Project → Cron Jobs. Remember Hobby timing is ±59 min, so a 04:00 job may run up to 04:59 UTC. |
+| A job failed and wasn't retried | The daily dispatcher re-runs each idempotent job the next day; for an immediate retry use the manual buttons (**"Email reminders"**, **"Email backups now"**, **"Send win-back emails"**). |

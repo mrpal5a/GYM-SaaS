@@ -4,18 +4,26 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckIcon, XIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { approveJoinRequestAction, rejectJoinRequestAction } from "@/actions/join";
 
-export function RequestActions({ requestId }: { requestId: string }) {
+export function RequestActions({
+  requestId,
+  groups = [],
+}: {
+  requestId: string;
+  groups?: { id: string; name: string }[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | "approve" | "reject">(null);
   const [showReject, setShowReject] = useState(false);
   const [reason, setReason] = useState("");
+  const [groupChoice, setGroupChoice] = useState("");
 
   async function onApprove() {
     setBusy("approve");
-    const res = await approveJoinRequestAction(requestId);
+    const res = await approveJoinRequestAction(requestId, groupChoice);
     setBusy(null);
     if (!res.ok) {
       toast.error(res.error);
@@ -55,6 +63,23 @@ export function RequestActions({ requestId }: { requestId: string }) {
 
   return (
     <div className="space-y-2">
+      <div>
+        <Select
+          value={groupChoice}
+          onChange={(e) => setGroupChoice(e.target.value)}
+          disabled={busy !== null}
+          aria-label="Add to group on approval"
+          className="sm:max-w-56"
+        >
+          <option value="">No group</option>
+          <option value="__new__">＋ Start a new group (named after this member)</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </Select>
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={onApprove} disabled={busy !== null}>
           {busy === "approve" ? <Loader2Icon className="animate-spin" /> : <CheckIcon />} Approve

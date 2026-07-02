@@ -2,7 +2,7 @@ import Link from "next/link";
 import { UsersIcon, BadgeCheckIcon, AlarmClockIcon, IndianRupeeIcon, UserPlusIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getGymContext } from "@/lib/auth/context";
-import { canManageGym } from "@/lib/auth/roles";
+import { canReviewRequests } from "@/lib/auth/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { MonthlyChart } from "@/components/dashboard/monthly-chart";
@@ -50,11 +50,11 @@ export default async function DashboardPage() {
   const payments = (paymentsData ?? []) as Pick<Payment, "amount" | "paid_at">[];
   const subscriptions = (subsData ?? []) as { end_date: string | null }[];
 
-  // Owners see a banner when join requests are awaiting review (RLS scopes the count).
+  // Owners + staff see a banner when join requests are awaiting review (RLS scopes the count).
   const ctx = await getGymContext();
-  const canManage = ctx ? canManageGym(ctx.role) : false;
+  const canReview = ctx ? canReviewRequests(ctx.role) : false;
   let pendingRequests = 0;
-  if (canManage) {
+  if (canReview) {
     const { count } = await supabase
       .from("join_requests")
       .select("id", { count: "exact", head: true })
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-muted-foreground">Your gym at a glance.</p>
       </div>
 
-      {canManage && pendingRequests > 0 && (
+      {canReview && pendingRequests > 0 && (
         <Link
           href="/join-requests"
           className="glass flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10"

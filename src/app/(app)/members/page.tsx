@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UserPlusIcon, UsersIcon } from "lucide-react";
+import { UserPlusIcon, UsersIcon, UsersRoundIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -12,18 +12,32 @@ import type { MemberWithStatus } from "@/types/db";
 
 export const dynamic = "force-dynamic";
 
+// Sort options → the column + direction applied to the query.
+const MEMBER_SORT_COLUMNS: Record<string, { column: string; ascending: boolean }> = {
+  created_desc: { column: "created_at", ascending: false },
+  created_asc: { column: "created_at", ascending: true },
+  name_asc: { column: "full_name", ascending: true },
+  name_desc: { column: "full_name", ascending: false },
+};
+
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; flash?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; sort?: string; flash?: string }>;
 }) {
-  const { q = "", status = "", flash } = await searchParams;
+  const { q = "", status = "", sort = "", flash } = await searchParams;
   const supabase = await createClient();
+
+  // Fall back to newest-first for anything unrecognized.
+  const selectedSort = MEMBER_SORT_COLUMNS[sort] ? sort : "created_desc";
+  const sortConfig = MEMBER_SORT_COLUMNS[selectedSort];
 
   let query = supabase
     .from("member_with_status")
     .select("*")
-    .order("created_at", { ascending: false })
+    // Archived (left-the-gym) members live on their own /archived page.
+    .is("archived_at", null)
+    .order(sortConfig.column, { ascending: sortConfig.ascending })
     .limit(500);
 
   const term = q.replace(/[%,()]/g, "").trim();
@@ -57,7 +71,7 @@ export default async function MembersPage({
         </Link>
       </div>
 
-      <MembersToolbar initialQuery={q} initialStatus={status} />
+      <MembersToolbar initialQuery={q} initialStatus={status} initialSort={selectedSort} />
 
       {error ? (
         <Card className="glass p-6 text-sm text-destructive">
@@ -107,7 +121,15 @@ export default async function MembersPage({
                       <Link href={`/members/${m.id}`} className="flex items-center gap-3">
                         <MemberAvatar name={m.full_name} photoUrl={m.photo_url} size="sm" />
                         <div>
-                          <div className="font-medium">{m.full_name}</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium">{m.full_name}</span>
+                            {m.group_name && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                <UsersRoundIcon className="size-2.5" />
+                                {m.group_name}
+                              </span>
+                            )}
+                          </div>
                           {!m.is_active && (
                             <div className="text-xs text-muted-foreground">Inactive</div>
                           )}

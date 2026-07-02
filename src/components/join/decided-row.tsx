@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { MemberPhoto } from "@/components/members/member-photo";
-import { formatDate, formatMoney, formatSerial } from "@/lib/members/metrics";
+import { formatDate, formatDateTime, formatMoney, formatSerial } from "@/lib/members/metrics";
 import { methodLabel } from "@/lib/payments/invoice";
 import { cn } from "@/lib/utils";
 import type { JoinRequest } from "@/types/db";
@@ -14,7 +14,7 @@ import type { JoinRequest } from "@/types/db";
  * member record, so the row is clickable to expand the full submitted details +
  * rejection reason — the only place that data survives.
  */
-export function DecidedRow({ r }: { r: JoinRequest }) {
+export function DecidedRow({ r, reviewerLabel }: { r: JoinRequest; reviewerLabel: string | null }) {
   const [open, setOpen] = useState(false);
 
   if (r.status !== "rejected") {
@@ -22,7 +22,15 @@ export function DecidedRow({ r }: { r: JoinRequest }) {
       <div className="flex items-center gap-3 p-3 text-sm">
         <MemberPhoto name={r.full_name} photoUrl={r.photo_url} size="sm" />
         <span className="font-mono text-xs text-muted-foreground">{formatSerial(r.serial)}</span>
-        <span className="min-w-0 flex-1 truncate font-medium">{r.full_name}</span>
+        <div className="min-w-0 flex-1">
+          <span className="truncate font-medium">{r.full_name}</span>
+          {reviewerLabel && (
+            <p className="text-xs text-muted-foreground">
+              Approved by <span className="text-foreground">{reviewerLabel}</span>
+              {r.reviewed_at && ` · ${formatDateTime(r.reviewed_at)}`}
+            </p>
+          )}
+        </div>
         {r.plan_name && <span className="hidden text-xs text-muted-foreground sm:inline">{r.plan_name}</span>}
         <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs text-emerald-600 capitalize dark:text-emerald-400">
           {r.status}
@@ -52,6 +60,12 @@ export function DecidedRow({ r }: { r: JoinRequest }) {
           <p className="mt-0.5 text-xs text-muted-foreground">
             <span className="font-medium">Reason:</span> {r.rejection_reason || "No reason given"}
           </p>
+          {reviewerLabel && (
+            <p className="text-xs text-muted-foreground">
+              Rejected by <span className="text-foreground">{reviewerLabel}</span>
+              {r.reviewed_at && ` · ${formatDateTime(r.reviewed_at)}`}
+            </p>
+          )}
         </div>
         <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive capitalize">
           {r.status}

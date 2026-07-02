@@ -9,12 +9,15 @@ import { ConfirmButton } from "@/components/ui/confirm-button";
 import { MemberPhoto } from "@/components/members/member-photo";
 import { StatusBadge } from "@/components/members/status-badge";
 import { DeleteMemberButton } from "@/components/members/delete-member-button";
+import { ArchiveMemberButton } from "@/components/members/archive-member-button";
+import { GroupCard } from "@/components/members/group-card";
 import { AssignMembershipForm } from "@/components/memberships/assign-membership-form";
 import { RecordPaymentForm } from "@/components/payments/record-payment-form";
 import { cancelMembershipAction, assignPersonalTrainerAction } from "@/actions/memberships";
 import { getGymContext } from "@/lib/auth/context";
 import { canManageGym } from "@/lib/auth/roles";
-import { calcBmi, daysUntil, formatDate, formatMoney, formatSerial } from "@/lib/members/metrics";
+import { calcBmi, daysUntil, formatDate, formatDateTime, formatMoney, formatSerial } from "@/lib/members/metrics";
+import { loadActors, actorLabel, paymentSourceLabel } from "@/lib/members/attribution";
 import type { MemberWithStatus, MembershipPlan, MemberSubscription, Payment } from "@/types/db";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +75,48 @@ export default async function MemberDetailPage({
   const payments = (paymentsData ?? []) as Payment[];
   const ptSub = (ptSubData ?? null) as MemberSubscription | null;
 
+  // Resolve every actor referenced on this page (member creator + payment recorders)
+  // to a name/role in one query, for the "who / when / how" attribution lines.
+  const actors = await loadActors(supabase, [
+    member.created_by,
+    ...payments.map((p) => p.created_by),
+  ]);
+
+  // Group: the other members who joined together with this one. When in a group we
+  // also load ungrouped members (candidates to add); when not, the existing groups
+  // this member could be added to.
+  type Groupmate = Pick<
+    MemberWithStatus,
+    "id" | "full_name" | "photo_url" | "plan_name" | "membership_status"
+  >;
+  let groupmates: Groupmate[] = [];
+  let candidates: { id: string; full_name: string }[] = [];
+  let existingGroups: { id: string; name: string }[] = [];
+  if (member.group_id) {
+    const [{ data: gm }, { data: cand }] = await Promise.all([
+      supabase
+        .from("member_with_status")
+        .select("id, full_name, photo_url, plan_name, membership_status")
+        .eq("group_id", member.group_id)
+        .neq("id", id)
+        .order("full_name"),
+      supabase
+        .from("members")
+        .select("id, full_name")
+        .is("group_id", null)
+        .neq("id", id)
+        .order("full_name"),
+    ]);
+    groupmates = (gm ?? []) as Groupmate[];
+    candidates = (cand ?? []) as { id: string; full_name: string }[];
+  } else {
+    const { data: gs } = await supabase
+      .from("member_groups")
+      .select("id, name")
+      .order("name");
+    existingGroups = (gs ?? []) as { id: string; name: string }[];
+  }
+
   const bmi = calcBmi(member.height_cm, member.weight_kg);
   const remaining = daysUntil(member.end_date);
   const ptRemaining = daysUntil(ptSub?.end_date ?? null);
@@ -98,12 +143,25 @@ export default async function MemberDetailPage({
                   {formatSerial(member.serial)}
                 </span>
                 {!member.is_active && <Badge>Inactive</Badge>}
+                {member.archived_at && (
+                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                    Archived · left the gym
+                  </Badge>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                 <StatusBadge status={member.membership_status} />
                 {member.phone && <span>{member.phone}</span>}
                 {member.email && <span>· {member.email}</span>}
               </div>
+              <p className="text-xs text-muted-foreground">
+                {member.source === "join_approval" ? "Approved by" : "Added by"}{" "}
+                <span className="font-medium text-foreground">
+                  {actorLabel(actors.get(member.created_by ?? ""))}
+                </span>{" "}
+                · {formatDateTime(member.created_at)}
+                {member.source === "join_approval" && " · via join request"}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -116,6 +174,7 @@ export default async function MemberDetailPage({
             <Link href={`/members/${id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}>
               <PencilIcon /> Edit
             </Link>
+            <ArchiveMemberButton memberId={id} archived={member.archived_at !== null} />
             {canManage && <DeleteMemberButton memberId={id} name={member.full_name} />}
           </div>
         </div>
@@ -186,6 +245,7 @@ export default async function MemberDetailPage({
                           <th className="py-2 pr-4 font-medium">Date</th>
                           <th className="py-2 pr-4 font-medium">Amount</th>
                           <th className="py-2 pr-4 font-medium">Method</th>
+                          <th className="py-2 pr-4 font-medium">Recorded by</th>
                           <th className="py-2 font-medium">Invoice</th>
                         </tr>
                       </thead>
@@ -195,6 +255,10 @@ export default async function MemberDetailPage({
                             <td className="py-2 pr-4">{formatDate(p.paid_at.slice(0, 10))}</td>
                             <td className="py-2 pr-4 font-medium">{formatMoney(Number(p.amount))}</td>
                             <td className="py-2 pr-4 text-muted-foreground">{methodLabel(p.method)}</td>
+                            <td className="py-2 pr-4 text-muted-foreground">
+                              <span className="text-foreground">{actorLabel(actors.get(p.created_by ?? ""))}</span>
+                              <span className="block text-xs">{paymentSourceLabel(p.source)}</span>
+                            </td>
                             <td className="py-2 font-mono text-xs">
                               <Link
                                 href={`/invoice/${p.id}`}
@@ -260,6 +324,25 @@ export default async function MemberDetailPage({
                 </p>
                 <AssignMembershipForm memberId={id} plans={plans} />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass">
+            <CardHeader>
+              <CardTitle>Group</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GroupCard
+                memberId={id}
+                group={
+                  member.group_id
+                    ? { id: member.group_id, name: member.group_name ?? "Group" }
+                    : null
+                }
+                groupmates={groupmates}
+                candidates={candidates}
+                existingGroups={existingGroups}
+              />
             </CardContent>
           </Card>
 
