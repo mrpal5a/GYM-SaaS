@@ -9,9 +9,15 @@ const PUBLIC = ["/login", "/accept-invite", "/join", "/forgot-password", "/reset
 // which shows the "service paused" contact banner.
 const PAUSE_GATED = ["/members", "/groups", "/archived", "/payments", "/renewals", "/plans", "/settings", "/join-requests", "/invoice"];
 
+// Match a path against route prefixes on segment boundaries, so "/join" matches
+// "/join" and "/join/<token>" but NOT "/join-requests". Plain startsWith would
+// wrongly treat sibling routes that share a string prefix as the same route.
+const matchesPrefix = (path: string, prefixes: string[]) =>
+  prefixes.some((p) => path === p || path.startsWith(p + "/"));
+
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC.some((p) => path.startsWith(p));
+  const isPublic = matchesPrefix(path, PUBLIC);
 
   try {
     const { response, user, supabase } = await updateSession(request);
@@ -27,7 +33,7 @@ export async function proxy(request: NextRequest) {
     }
     // Paused gyms: allow only the dashboard. Check just for gated routes (keeps the
     // extra query off the dashboard, assets, and auth pages).
-    if (user && PAUSE_GATED.some((p) => path.startsWith(p))) {
+    if (user && matchesPrefix(path, PAUSE_GATED)) {
       const { data } = await supabase.auth.getClaims();
       const gymId = data?.claims?.gym_id as string | undefined;
       if (gymId && data?.claims?.user_role !== "super_admin") {
